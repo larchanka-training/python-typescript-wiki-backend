@@ -67,8 +67,11 @@ FastAPI backend приложение.
 ### 1. Создайте виртуальное окружение (рекомендуется)
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate  # для macOS/Linux
+ python -m venv .venv
+ # On Windows:
+ .venv\Scripts\activate
+ # On Unix/MacOS:
+ source .venv/bin/activate
 ```
 
 ### 2. Установите все зависимости
@@ -77,12 +80,6 @@ source venv/bin/activate  # для macOS/Linux
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
-
-Это установит:
-- `fastapi` и `fastapi[standard]` - веб-фреймворк
-- `requests` - HTTP библиотека
-- `pre-commit>=3.0.0` - инструмент для git hooks
-- `ruff>=0.14.9` - линтер и форматтер
 
 ## 🔧 Настройка Pre-commit Hooks
 
@@ -235,38 +232,3 @@ pre-commit autoupdate
 ```bash
 git commit --no-verify -m "your message"
 ```
-
-⚠️ **Внимание:** Используйте это только в крайних случаях!
-
-## 📚 Полезные команды
-
-```bash
-# Установить зависимости
-pip install -r requirements.txt
-
-# Установить pre-commit hooks
-pre-commit install
-
-# Проверить все hooks
-pre-commit run --all-files
-
-# Проверить код через ruff
-ruff check .
-
-# Отформатировать код
-ruff format .
-
-# Обновить hooks
-pre-commit autoupdate
-```
-
-## 🎯 Быстрый старт
-
-1. Клонируйте репозиторий
-2. Создайте виртуальное окружение: `python3 -m venv venv`
-3. Активируйте его: `source venv/bin/activate`
-4. Установите зависимости: `pip install -r requirements.txt`
-5. Установите hooks: `pre-commit install`
-6. Проверьте работу: `pre-commit run --all-files`
-
-Готово! Теперь при каждом коммите код будет автоматически проверяться.

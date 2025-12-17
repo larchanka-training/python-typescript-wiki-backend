@@ -8,3 +8,4 @@ psycopg[binary]
 slowapi
 pre-commit>=3.0.0
 ruff>=0.14.9
+slowapi
