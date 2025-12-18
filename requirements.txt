@@ -5,3 +5,4 @@ asyncpg
 SQLAlchemy
 alembic
 psycopg[binary]
+slowapi
