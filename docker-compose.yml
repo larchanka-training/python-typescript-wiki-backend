@@ -6,6 +6,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     ports:
+      # Host port 5433 -> container 5432 (use localhost:5433 in pgAdmin).
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -25,6 +26,7 @@ services:
       db:
         condition: service_healthy
     command: >
+      # Apply migrations on container start, then run the API server.
       sh -c "alembic upgrade head &&
              fastapi dev app/main.py --host 0.0.0.0 --port 8000"
 
