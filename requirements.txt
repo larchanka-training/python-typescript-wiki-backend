@@ -1,3 +1,7 @@
 requests
 fastapi
 fastapi[standard]
+asyncpg
+SQLAlchemy
+alembic
+psycopg[binary]
