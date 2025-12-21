@@ -75,6 +75,19 @@ allow-dict-calls-with-keyword-arguments = true
 "test_*.py" = [
     # Allow `assert` statements in tests.
     "S101",
+    # Magic values in tests are acceptable.
+    "PLR2004",
+    # Docstrings in tests don't need periods.
+    "D415",
+    # String literals in exceptions in tests are acceptable.
+    "EM101",
+    # Long exception messages in tests are acceptable.
+    "TRY003",
+]
+
+"app/db.py" = [
+    # Request is used in runtime for FastAPI dependency injection.
+    "TC002",
 ]
 
 [tool.ruff.lint.flake8-type-checking]

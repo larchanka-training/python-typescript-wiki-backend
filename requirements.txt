@@ -6,11 +6,3 @@ SQLAlchemy
 alembic
 psycopg[binary]
 slowapi
-pre-commit>=3.0.0
-ruff>=0.14.9
-slowapi
-iniconfig==2.3.0
-packaging==25.0
-pluggy==1.6.0
-Pygments==2.19.2
-pytest==9.0.2
