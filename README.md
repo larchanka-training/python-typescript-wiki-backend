@@ -232,3 +232,8 @@ pre-commit autoupdate
 ```bash
 git commit --no-verify -m "your message"
 ```
+
+### 4. Running tests
+```bash
+pytest or you can use `pytest --verbose` for more information about tests
+```
