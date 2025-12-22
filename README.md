@@ -79,6 +79,7 @@ FastAPI backend приложение.
 ```bash
 pip install --upgrade pip
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ## 🔧 Настройка Pre-commit Hooks
@@ -231,4 +232,9 @@ pre-commit autoupdate
 
 ```bash
 git commit --no-verify -m "your message"
+```
+
+### Запуск тестов
+```bash
+pytest or you can use `pytest --verbose` for more information about tests
 ```

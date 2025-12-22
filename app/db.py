@@ -7,12 +7,14 @@ Connection settings are read from `DATABASE_URL`.
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 import asyncpg
 from asyncpg import Pool
 from fastapi import Request
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 # Default value is suitable for local development.
 DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/postgres"
@@ -37,6 +39,7 @@ async def get_connection(request: Request) -> AsyncIterator[asyncpg.Connection]:
     """FastAPI dependency that yields a pooled connection."""
     pool: Pool | None = getattr(request.app.state, "db_pool", None)
     if pool is None:
-        raise RuntimeError("Database pool is not initialized")
+        msg = "Database pool is not initialized"
+        raise RuntimeError(msg)
     async with pool.acquire() as connection:
         yield connection

@@ -7,15 +7,14 @@
 
 from __future__ import annotations
 
-import os
 from logging.config import fileConfig
+import os
 
-from alembic import context
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import URL, make_url
 
+from alembic import context
 from app.models import Base
-
 
 config = context.config
 
