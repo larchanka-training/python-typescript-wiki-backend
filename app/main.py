@@ -3,7 +3,6 @@
 - Uses `slowapi` to rate-limit public endpoints.
 - Creates an `asyncpg` connection pool on startup for raw SQL queries.
 """
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -15,6 +14,10 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.db import close_pool, create_pool, get_connection
+from dotenv import load_dotenv
+
+# Reads variables from a .env file and sets them in os.environ
+load_dotenv()
 
 # Global rate limiter instance. Per-route limits are configured via decorators.
 limiter = Limiter(key_func=get_remote_address)
