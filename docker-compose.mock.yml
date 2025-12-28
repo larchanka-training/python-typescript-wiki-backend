@@ -12,5 +12,6 @@ services:
       OAUTH_MOCK_FIRST_NAME: ${OAUTH_MOCK_FIRST_NAME:-Demo}
       OAUTH_MOCK_LAST_NAME: ${OAUTH_MOCK_LAST_NAME:-User}
       OAUTH_MOCK_PERMISSION: ${OAUTH_MOCK_PERMISSION:-admin}
+      OAUTH_MOCK_FIXED_CREATED_AT: ${OAUTH_MOCK_FIXED_CREATED_AT:-}
     command: >
       fastapi dev mock_oauth/app.py --host 0.0.0.0 --port 9001

@@ -33,6 +33,7 @@
   - `OAUTH_NAME_SECRET_KEY`
   - `TOKEN_TTL_SECONDS`
   - `SESSION_TTL_SECONDS`
+  - `OAUTH_MOCK_FIXED_CREATED_AT` (опционально, для детерминированных токенов mock)
 
 ## Bring-up
 ```bash
@@ -61,7 +62,78 @@ docker compose -f docker-compose.yml -f docker-compose.mock.yml exec -T db \
 ```bash
 curl http://localhost:9001/oauth/token/examples
 ```
-Ожидаемо: ключи `valid`, `expired`, `invalid`.
+Ожидаемо: ключи `valid`, `expired`, `invalid`, `invalid_hmac`, `invalid_base64`, `missing_fields`, `wrong_types`.
+Если задан `OAUTH_MOCK_FIXED_CREATED_AT`, токены (кроме `invalid`/`invalid_base64`) будут стабильны между запусками.
+
+#### A1) Быстрое извлечение токенов (без jq)
+```bash
+TOKENS_JSON=$(curl -s http://localhost:9001/oauth/token/examples)
+VALID=$(python3 - <<'PY'
+import json, os
+print(json.loads(os.environ["TOKENS_JSON"])["valid"])
+PY
+)
+EXPIRED=$(python3 - <<'PY'
+import json, os
+print(json.loads(os.environ["TOKENS_JSON"])["expired"])
+PY
+)
+INVALID=$(python3 - <<'PY'
+import json, os
+print(json.loads(os.environ["TOKENS_JSON"])["invalid"])
+PY
+)
+INVALID_HMAC=$(python3 - <<'PY'
+import json, os
+print(json.loads(os.environ["TOKENS_JSON"])["invalid_hmac"])
+PY
+)
+INVALID_BASE64=$(python3 - <<'PY'
+import json, os
+print(json.loads(os.environ["TOKENS_JSON"])["invalid_base64"])
+PY
+)
+MISSING_FIELDS=$(python3 - <<'PY'
+import json, os
+print(json.loads(os.environ["TOKENS_JSON"])["missing_fields"])
+PY
+)
+WRONG_TYPES=$(python3 - <<'PY'
+import json, os
+print(json.loads(os.environ["TOKENS_JSON"])["wrong_types"])
+PY
+)
+```
+
+#### A2) Проверка детерминированности (опционально)
+> Используйте, если нужно убедиться, что при `OAUTH_MOCK_FIXED_CREATED_AT` токены стабильны между запусками.
+
+1) Остановить mock и перезапустить с фиксированным created_at:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mock.yml down
+export OAUTH_MOCK_FIXED_CREATED_AT=1700000000
+docker compose -f docker-compose.yml -f docker-compose.mock.yml up --build -d
+```
+2) Считать токены (run #1):
+```bash
+curl -s http://localhost:9001/oauth/token/examples > /tmp/tokens_run1.json
+```
+3) Перезапустить mock и повторить (run #2):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mock.yml restart mock_oauth
+curl -s http://localhost:9001/oauth/token/examples > /tmp/tokens_run2.json
+```
+4) Сравнить (ожидается совпадение значений `valid/expired/invalid_hmac/missing_fields/wrong_types`):
+```bash
+python3 - <<'PY'
+import json
+keys = ["valid","expired","invalid_hmac","missing_fields","wrong_types"]
+with open("/tmp/tokens_run1.json") as f1, open("/tmp/tokens_run2.json") as f2:
+    a = json.load(f1)
+    b = json.load(f2)
+print({k: a[k]==b[k] for k in keys})
+PY
+```
 
 ### B) Happy path (created true/false, last_login_at update, username update)
 1) Сгенерировать токен:
@@ -113,6 +185,34 @@ curl -X POST http://localhost:8000/token \
   -d '{"token":"<invalid_from_examples>"}'
 ```
 Ожидаемо: `401`, `message=OAUTH_CODE_INVALID`.
+
+Дополнительно (edge-cases из mock):
+- `invalid_hmac` — base64 валиден, но HMAC подпорчен → `401`
+- `invalid_base64` — base64 decode падает → `401`
+- `missing_fields` — payload без обязательных полей → `401`
+- `wrong_types` — типы полей некорректные → `401`
+
+Пример (используйте значения из A1):
+```bash
+curl -X POST http://localhost:8000/token \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"$INVALID_HMAC\"}"
+```
+```bash
+curl -X POST http://localhost:8000/token \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"$INVALID_BASE64\"}"
+```
+```bash
+curl -X POST http://localhost:8000/token \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"$MISSING_FIELDS\"}"
+```
+```bash
+curl -X POST http://localhost:8000/token \
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"$WRONG_TYPES\"}"
+```
 
 ### E) Expired token (401 OAUTH_CODE_INVALID)
 ```bash
