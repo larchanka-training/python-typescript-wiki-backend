@@ -86,6 +86,7 @@ ENV-переменные:
 - `OAUTH_NAME_SECRET_KEY`
 - `TOKEN_TTL_SECONDS`
 - `SESSION_TTL_SECONDS` (используется эндпойнтами `/session*`)
+ - `OAUTH_MOCK_FIXED_CREATED_AT` (опционально, только для mock)
 
 Docker compose:
 - `docker-compose.yml` — API + DB.
@@ -127,6 +128,11 @@ curl http://localhost:9001/oauth/token/examples
 - `valid` → 200 (happy path)
 - `expired` → 401 `OAUTH_CODE_INVALID`
 - `invalid` → 401 `OAUTH_CODE_INVALID` (токен не проходит крипто/парсинг)
+- `invalid_hmac` → 401 `OAUTH_CODE_INVALID` (HMAC подпорчен)
+- `invalid_base64` → 401 `OAUTH_CODE_INVALID` (base64 decode падает)
+- `missing_fields` → 401 `OAUTH_CODE_INVALID` (payload без обязательных полей)
+- `wrong_types` → 401 `OAUTH_CODE_INVALID` (неверные типы полей)
+Если задан `OAUTH_MOCK_FIXED_CREATED_AT`, токены (кроме `invalid`/`invalid_base64`) будут стабильны между запусками.
 3) Проверить endpoint:
 ```bash
 curl -X POST http://localhost:8000/token \

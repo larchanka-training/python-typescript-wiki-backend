@@ -176,9 +176,13 @@ docker compose -f docker-compose.yml -f docker-compose.mock.yml up --build
 
 Mock слушает:
 - `http://localhost:9001/oauth/token/issue` — выдать токен по payload
-- `http://localhost:9001/oauth/token/examples` — готовые valid/expired/invalid
+- `http://localhost:9001/oauth/token/examples` — готовые кейсы:
+  - `valid`, `expired`, `invalid`
+  - `invalid_hmac`, `invalid_base64`
+  - `missing_fields`, `wrong_types`
 
 Mock использует те же `OAUTH_NAME_APPLICATION_ID`, `OAUTH_NAME_SECRET_KEY`, `TOKEN_TTL_SECONDS`.
+Для детерминированных токенов можно задать `OAUTH_MOCK_FIXED_CREATED_AT` (unix timestamp).
 
 Примеры:
 
