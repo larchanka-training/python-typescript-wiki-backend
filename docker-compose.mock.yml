@@ -1,0 +1,16 @@
+services:
+  oauth-mock:
+    build: .
+    ports:
+      - "9001:9001"
+    environment:
+      OAUTH_NAME_APPLICATION_ID: ${OAUTH_NAME_APPLICATION_ID:-local-app}
+      OAUTH_NAME_SECRET_KEY: ${OAUTH_NAME_SECRET_KEY:-local-secret}
+      TOKEN_TTL_SECONDS: ${TOKEN_TTL_SECONDS:-86400}
+      OAUTH_MOCK_TELEGRAM_ID: ${OAUTH_MOCK_TELEGRAM_ID:-123456}
+      OAUTH_MOCK_USERNAME: ${OAUTH_MOCK_USERNAME:-demo}
+      OAUTH_MOCK_FIRST_NAME: ${OAUTH_MOCK_FIRST_NAME:-Demo}
+      OAUTH_MOCK_LAST_NAME: ${OAUTH_MOCK_LAST_NAME:-User}
+      OAUTH_MOCK_PERMISSION: ${OAUTH_MOCK_PERMISSION:-admin}
+    command: >
+      fastapi dev mock_oauth/app.py --host 0.0.0.0 --port 9001
