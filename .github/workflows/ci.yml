@@ -13,22 +13,81 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt
-        
-    - name: Run tests
-      run: python -m pytest -v
 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # ✅ Генерация .env из конкретных ключей
+      - name: Generate .env
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Проверка обязательных переменных (чтобы CI падал понятной ошибкой)
+          missing=0
+          for k in DATABASE_URL OAUTH_NAME_APPLICATION_ID OAUTH_NAME_SECRET_KEY TOKEN_TTL_SECONDS SESSION_TTL_SECONDS; do
+            if [ -z "${!k:-}" ]; then
+              echo "Missing env: $k"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+          # Создаём .env в корне репозитория
+          cat > .env <<'EOF'
+          DATABASE_URL={{DATABASE_URL}}
+          OAUTH_NAME_APPLICATION_ID={{OAUTH_NAME_APPLICATION_ID}}
+          OAUTH_NAME_SECRET_KEY={{OAUTH_NAME_SECRET_KEY}}
+          TOKEN_TTL_SECONDS={{TOKEN_TTL_SECONDS}}
+          SESSION_TTL_SECONDS={{SESSION_TTL_SECONDS}}
+          EOF
+
+          # Подставляем значения безопасно (без печати значений в лог)
+          # Используем python, чтобы аккуратно заменить маркеры
+          python - <<'PY'
+          import os, pathlib
+
+          p = pathlib.Path(".env")
+          s = p.read_text()
+
+          mapping = {
+              "DATABASE_URL": os.environ["DATABASE_URL"],
+              "OAUTH_NAME_APPLICATION_ID": os.environ["OAUTH_NAME_APPLICATION_ID"],
+              "OAUTH_NAME_SECRET_KEY": os.environ["OAUTH_NAME_SECRET_KEY"],
+              "TOKEN_TTL_SECONDS": os.environ["TOKEN_TTL_SECONDS"],
+              "SESSION_TTL_SECONDS": os.environ["SESSION_TTL_SECONDS"],
+          }
+
+          # простая подстановка маркеров {{KEY}}
+          for k, v in mapping.items():
+              s = s.replace("{{" + k + "}}", v)
+
+          p.write_text(s)
+          PY
+
+          chmod 600 .env
+          test -s .env
+          echo ".env generated ($(wc -l < .env) lines)"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OAUTH_NAME_APPLICATION_ID: ${{ secrets.OAUTH_NAME_APPLICATION_ID }}
+          OAUTH_NAME_SECRET_KEY: ${{ secrets.OAUTH_NAME_SECRET_KEY }}
+          TOKEN_TTL_SECONDS: ${{ vars.TOKEN_TTL_SECONDS }}
+          SESSION_TTL_SECONDS: ${{ vars.SESSION_TTL_SECONDS }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -v
