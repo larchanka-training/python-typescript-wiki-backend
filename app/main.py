@@ -27,6 +27,10 @@ from app.core.errors import (
 )
 from app.core.trace import TRACE_ID_HEADER, get_or_create_trace_id
 from app.db import close_pool, create_pool, get_connection
+from dotenv import load_dotenv
+
+# Reads variables from a .env file and sets them in os.environ
+load_dotenv()
 
 # Global rate limiter instance. Per-route limits are configured via decorators.
 limiter = Limiter(key_func=get_remote_address)
