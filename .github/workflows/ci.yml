@@ -23,55 +23,24 @@ jobs:
         with:
           python-version: '3.x'
 
-      # ✅ Генерация .env из конкретных ключей
       - name: Generate .env
         shell: bash
         run: |
           set -euo pipefail
 
-          # Проверка обязательных переменных (чтобы CI падал понятной ошибкой)
-          missing=0
-          for k in DATABASE_URL OAUTH_NAME_APPLICATION_ID OAUTH_NAME_SECRET_KEY TOKEN_TTL_SECONDS SESSION_TTL_SECONDS; do
-            if [ -z "${!k:-}" ]; then
-              echo "Missing env: $k"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            exit 1
-          fi
+          : "${DATABASE_URL:?Missing DATABASE_URL}"
+          : "${OAUTH_NAME_APPLICATION_ID:?Missing OAUTH_NAME_APPLICATION_ID}"
+          : "${OAUTH_NAME_SECRET_KEY:?Missing OAUTH_NAME_SECRET_KEY}"
+          : "${TOKEN_TTL_SECONDS:?Missing TOKEN_TTL_SECONDS}"
+          : "${SESSION_TTL_SECONDS:?Missing SESSION_TTL_SECONDS}"
 
-          # Создаём .env в корне репозитория
-          cat > .env <<'EOF'
-          DATABASE_URL={{DATABASE_URL}}
-          OAUTH_NAME_APPLICATION_ID={{OAUTH_NAME_APPLICATION_ID}}
-          OAUTH_NAME_SECRET_KEY={{OAUTH_NAME_SECRET_KEY}}
-          TOKEN_TTL_SECONDS={{TOKEN_TTL_SECONDS}}
-          SESSION_TTL_SECONDS={{SESSION_TTL_SECONDS}}
+          cat > .env <<EOF
+          DATABASE_URL=$DATABASE_URL
+          OAUTH_NAME_APPLICATION_ID=$OAUTH_NAME_APPLICATION_ID
+          OAUTH_NAME_SECRET_KEY=$OAUTH_NAME_SECRET_KEY
+          TOKEN_TTL_SECONDS=$TOKEN_TTL_SECONDS
+          SESSION_TTL_SECONDS=$SESSION_TTL_SECONDS
           EOF
-
-          # Подставляем значения безопасно (без печати значений в лог)
-          # Используем python, чтобы аккуратно заменить маркеры
-          python - <<'PY'
-          import os, pathlib
-
-          p = pathlib.Path(".env")
-          s = p.read_text()
-
-          mapping = {
-              "DATABASE_URL": os.environ["DATABASE_URL"],
-              "OAUTH_NAME_APPLICATION_ID": os.environ["OAUTH_NAME_APPLICATION_ID"],
-              "OAUTH_NAME_SECRET_KEY": os.environ["OAUTH_NAME_SECRET_KEY"],
-              "TOKEN_TTL_SECONDS": os.environ["TOKEN_TTL_SECONDS"],
-              "SESSION_TTL_SECONDS": os.environ["SESSION_TTL_SECONDS"],
-          }
-
-          # простая подстановка маркеров {{KEY}}
-          for k, v in mapping.items():
-              s = s.replace("{{" + k + "}}", v)
-
-          p.write_text(s)
-          PY
 
           chmod 600 .env
           test -s .env
