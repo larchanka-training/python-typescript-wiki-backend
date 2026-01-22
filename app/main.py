@@ -16,7 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException
 
-from app.api.v1.routes import auth as auth_routes, session as session_routes
+from app.api.v1.routes import auth as auth_routes, session as session_routes, spaces as spaces_routes
 from app.core.errors import (
     AppError,
     app_error_handler,
@@ -88,3 +88,4 @@ async def health_db(
 
 app.include_router(auth_routes.router)
 app.include_router(session_routes.router)
+app.include_router(spaces_routes.router)
