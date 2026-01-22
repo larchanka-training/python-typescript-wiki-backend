@@ -23,56 +23,9 @@ jobs:
         with:
           python-version: '3.x'
       
-      - name: Run Quality Monitor
-        uses: uhafner/quality-monitor@v3
-        with:
-          pr-number: ${{ steps.pr.outputs.number }}
-          config: >
-            {
-              "tests": {
-                "tools": [
-                  {
-                    "id": "pytest",
-                    "name": "Unittests",
-                    "pattern": "**/target/*-reports/TEST*.xml"
-                  }
-                ]
-              },
-              "coverage": [
-                {
-                  "name": "JaCoCo",
-                  "tools": [
-                    {
-                      "id": "jacoco",
-                      "metric": "line",
-                      "sourcePath": "app",
-                      "pattern": "**/jacoco.xml"
-                    },
-                    {
-                      "id": "jacoco",
-                      "metric": "branch",
-                      "sourcePath": "app",
-                      "pattern": "**/jacoco.xml"
-                    }
-                  ]
-                }
-              ]
-            } 
-          quality-gates: >
-            {
-              "qualityGates": [
-                {
-                  "metric": "line",
-                  "threshold": 80.0,
-                  "criticality": "FAILURE"
-                },
-                {
-                  "metric": "checkstyle",
-                  "threshold": 70.0,
-                  "criticality": "UNSTABLE"
-                }
-              ]
-            }  
+      - name: Run Microsoft Security DevOps
+        uses: microsoft/security-devops-action@latest
+        id: msdo
 
       - name: Generate .env
         shell: bash
