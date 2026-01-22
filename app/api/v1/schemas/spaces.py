@@ -18,10 +18,4 @@ class SpaceCreateResponse(BaseModel):
 
     id: UUID = Field(..., description="UUID of the created space")
 
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "id": "123e4567-e89b-12d3-a456-426614174000"
-            }
-        }
-    }
+    model_config = {"json_schema_extra": {"example": {"id": "123e4567-e89b-12d3-a456-426614174000"}}}

@@ -71,6 +71,8 @@ class Session(Base):
         DateTime(timezone=True),
         server_default=text("now()"),
     )
+
+
 class Space(Base):
     """Space model."""
 

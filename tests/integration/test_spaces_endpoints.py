@@ -3,7 +3,7 @@
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
@@ -82,12 +82,10 @@ def _sample_session_data() -> SessionData:
 def test_create_space_success_returns_201(client_factory: Callable[[object, object], TestClient]) -> None:
     session_service = FakeSessionService(_sample_session_data())
     space_service = FakeSpaceService(SPACE_ID)
-    
+
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces", 
-            json={"name": "New Space"},
-            headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            "/spaces", json={"name": "New Space"}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
         )
 
     assert response.status_code == status.HTTP_201_CREATED
@@ -97,13 +95,9 @@ def test_create_space_success_returns_201(client_factory: Callable[[object, obje
 def test_create_space_missing_name_returns_400(client_factory: Callable[[object, object], TestClient]) -> None:
     session_service = FakeSessionService(_sample_session_data())
     space_service = FakeSpaceService(SPACE_ID)
-    
+
     with client_factory(session_service, space_service) as client:
-        response = client.post(
-            "/spaces", 
-            json={"name": "   "},
-            headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
-        )
+        response = client.post("/spaces", json={"name": "   "}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
@@ -112,12 +106,9 @@ def test_create_space_missing_name_returns_400(client_factory: Callable[[object,
 def test_create_space_missing_session_returns_401(client_factory: Callable[[object, object], TestClient]) -> None:
     session_service = FakeSessionService(_sample_session_data())
     space_service = FakeSpaceService(SPACE_ID)
-    
+
     with client_factory(session_service, space_service) as client:
-        response = client.post(
-            "/spaces", 
-            json={"name": "New Space"}
-        )
+        response = client.post("/spaces", json={"name": "New Space"})
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["message"] == ErrorCode.SESSION_MISSING

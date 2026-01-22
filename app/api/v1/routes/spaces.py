@@ -6,12 +6,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Header, Request, status
 
-from app.api.deps import get_space_service, get_session_service
+from app.api.deps import get_session_service, get_space_service
 from app.api.v1.schemas.spaces import SpaceCreateRequest, SpaceCreateResponse
 from app.core.errors import AppError, ErrorCode, ErrorResponse
 from app.core.trace import get_trace_id
-from app.services.space_service import SpaceService
 from app.services.session_service import SessionService
+from app.services.space_service import SpaceService
 
 router = APIRouter(tags=["spaces"])
 
@@ -103,7 +103,7 @@ async def create_space(
     """
     trace_id = get_trace_id(request)
     session_token = _extract_bearer_token(authorization)
-    
+
     # Check session and get user_id
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id

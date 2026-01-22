@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 
 import asyncpg
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from slowapi import Limiter
@@ -27,7 +28,6 @@ from app.core.errors import (
 )
 from app.core.trace import TRACE_ID_HEADER, get_or_create_trace_id
 from app.db import close_pool, create_pool, get_connection
-from dotenv import load_dotenv
 
 # Reads variables from a .env file and sets them in os.environ
 load_dotenv()
