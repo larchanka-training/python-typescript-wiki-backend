@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.api.deps import get_session_service, get_space_service
-from app.core.errors import AppError, ErrorCode
+from app.core.errors import ErrorCode
 from app.main import app
 from app.services.models import SessionData, UserProfile
 
