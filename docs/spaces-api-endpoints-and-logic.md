@@ -43,6 +43,11 @@
 - **Owner** — владелец пространства.
 - **Superuser** — глобальная роль платформы (override).
 
+## Модель данных (реализовано)
+- `users.is_superuser` — глобальная роль платформы (не из oauth claim `permission`).
+- `spaces` — пространства, soft delete через `deleted_at`/`delete_scheduled_at`.
+- `space_members` — связи `user ↔ space` с ролью (`owner`/`admin`/`editor`/`viewer`).
+
 ---
 
 ## Авторизация и проверка сессии

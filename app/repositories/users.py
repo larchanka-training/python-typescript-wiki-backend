@@ -64,6 +64,7 @@ class UserRepository:
                 last_name,
                 photo_url,
                 permission,
+                is_superuser,
                 created_at,
                 updated_at,
                 last_login_at,
@@ -89,6 +90,7 @@ class UserRepository:
             last_name=row["last_name"],
             photo_url=row["photo_url"],
             permission=row["permission"],
+            is_superuser=row["is_superuser"],
             created_at=row["created_at"],
             last_login_at=row["last_login_at"],
         )
@@ -106,6 +108,7 @@ class UserRepository:
                 last_name,
                 photo_url,
                 permission,
+                is_superuser,
                 created_at,
                 updated_at,
                 last_login_at
@@ -125,6 +128,23 @@ class UserRepository:
             last_name=row["last_name"],
             photo_url=row["photo_url"],
             permission=row["permission"],
+            is_superuser=row["is_superuser"],
             created_at=row["created_at"],
             last_login_at=row["last_login_at"],
         )
+
+    async def ensure_first_superuser(self, user_id: int) -> bool:
+        """Делает пользователя superuser, если в системе его ещё нет."""
+        row = await self._connection.fetchrow(
+            """
+            UPDATE users
+            SET is_superuser = TRUE
+            WHERE id = $1
+              AND NOT EXISTS (
+                SELECT 1 FROM users WHERE is_superuser = TRUE
+              )
+            RETURNING id;
+            """,
+            user_id,
+        )
+        return row is not None
