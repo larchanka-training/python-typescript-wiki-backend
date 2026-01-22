@@ -1,6 +1,6 @@
 """create spaces and space_memberships tables
 
-Revision ID: 8cd20799bd4e
+Revision ID: 0005_create_spaces
 Revises: 0004_create_sessions_table
 Create Date: 2026-01-22 14:46:29.978837
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0005_create_spaces.py"
+revision = "0005_create_spaces"
 down_revision = "0004_create_sessions_table"
 branch_labels = None
 depends_on = None
