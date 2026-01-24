@@ -3,16 +3,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import logging
 from typing import TYPE_CHECKING
 
 from fastapi import status
 
 from app.core.errors import AppError, ErrorCode
+from app.services.models import UserProfile
 
 if TYPE_CHECKING:
     from app.repositories.users import UserRepository
-    from app.services.models import UserProfile
     from app.services.token_service import TokenPayload, TokenService
 
 logger = logging.getLogger(__name__)
@@ -32,18 +33,18 @@ class AuthService:
         Для тестовых токенов: возвращает пользователя без DB upsert.
         Любая ошибка валидации/БД -> AppError с контрактным кодом.
         """
-        # Сначала пытаемся проверить как тестовый токен
         try:
-            payload = self._token_service.verify_test_token(token, trace_id=trace_id)
-            return await self._create_test_user_profile(payload, trace_id)
-        except AppError:
-            # Тестовый токен не прошёл, пытаемся обычный рабочий процесс
+            # Сначала пытаемся проверить как реальный токен
             payload = self._token_service.verify_token(token, trace_id=trace_id)
             return await self._create_regular_user_profile(payload, trace_id)
+        except AppError:
+            # Реальный токен не прошёл, проверяем на тестовый рабочий процесс
+            payload = self._token_service.verify_test_token(token, trace_id=trace_id)
+            return await self._create_test_user_profile(payload, trace_id)
 
-    async def _create_test_user_profile(self, payload: TokenPayload, trace_id: str) -> tuple[UserProfile, bool]:
+    @staticmethod
+    async def _create_test_user_profile(payload: TokenPayload, trace_id: str) -> tuple[UserProfile, bool]:
         """Создаёт профиль тестового пользователя без DB upsert."""
-        from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         user = UserProfile(
             id=payload.telegram_id,

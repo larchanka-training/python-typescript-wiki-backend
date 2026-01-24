@@ -51,11 +51,7 @@ class TokenService:
         private_key = f"{application_id}:{secret_key}"
         self._key = hashlib.sha256(private_key.encode()).digest()
         self._ttl_seconds = ttl_seconds
-        # Convert string to Environment enum if needed
-        if isinstance(environment, str):
-            self._environment = Environment(environment.lower())
-        else:
-            self._environment = environment
+        self._environment = environment
         self._test_token = test_token
 
     def verify_token(self, token: str, trace_id: str | None = None) -> TokenPayload:
