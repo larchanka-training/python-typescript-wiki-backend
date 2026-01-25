@@ -11,9 +11,11 @@ from fastapi import Depends
 from app.core.config import get_settings
 from app.db import get_connection
 from app.repositories.sessions import SessionRepository
+from app.repositories.spaces import SpaceRepository
 from app.repositories.users import UserRepository
 from app.services.auth_service import AuthService
 from app.services.session_service import SessionService
+from app.services.space_service import SpaceService
 from app.services.token_service import TokenService
 
 
@@ -62,3 +64,17 @@ def get_session_service(
         session_repository=session_repository,
         ttl_seconds=settings.session_ttl_seconds,
     )
+
+
+def get_space_repository(
+    connection: Annotated[asyncpg.Connection, Depends(get_connection)],
+) -> SpaceRepository:
+    """Создаёт SpaceRepository для текущего подключения БД."""
+    return SpaceRepository(connection)
+
+
+def get_space_service(
+    space_repository: Annotated[SpaceRepository, Depends(get_space_repository)],
+) -> SpaceService:
+    """Создаёт SpaceService."""
+    return SpaceService(space_repository)
