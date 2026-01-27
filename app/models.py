@@ -71,3 +71,24 @@ class Session(Base):
         DateTime(timezone=True),
         server_default=text("now()"),
     )
+
+
+class Space(Base):
+    """Space model."""
+
+    __tablename__ = "spaces"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    delete_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SpaceMembership(Base):
+    """Link between Users and Spaces."""
+
+    __tablename__ = "space_memberships"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    space_id: Mapped[UUID] = mapped_column(ForeignKey("spaces.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(64), nullable=False)

@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 
 import asyncpg
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from slowapi import Limiter
@@ -16,7 +17,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException
 
-from app.api.v1.routes import auth as auth_routes, session as session_routes
+from app.api.v1.routes import auth as auth_routes, session as session_routes, spaces as spaces_routes
 from app.core.errors import (
     AppError,
     app_error_handler,
@@ -27,7 +28,6 @@ from app.core.errors import (
 )
 from app.core.trace import TRACE_ID_HEADER, get_or_create_trace_id
 from app.db import close_pool, create_pool, get_connection
-from dotenv import load_dotenv
 
 # Reads variables from a .env file and sets them in os.environ
 load_dotenv()
@@ -88,3 +88,4 @@ async def health_db(
 
 app.include_router(auth_routes.router)
 app.include_router(session_routes.router)
+app.include_router(spaces_routes.router)

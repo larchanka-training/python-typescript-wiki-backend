@@ -33,7 +33,8 @@ services:
         condition: service_healthy
     # Apply migrations on container start, then run the API server.
     command: >
-      sh -c "alembic upgrade head &&
+      sh -c "pip install --no-cache-dir --upgrade -r requirements.txt &&
+             alembic upgrade head &&
              fastapi dev app/main.py --host 0.0.0.0 --port 8000"
 
 volumes:
