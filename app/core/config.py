@@ -19,7 +19,7 @@ class Settings:
     token_ttl_seconds: int
     session_ttl_seconds: int
     environment: Environment
-    test_token: str | None = None
+    test_access_token: str | None = None
 
 
 def _env_optional(name: str, default: str | None = None) -> str | None:
@@ -53,6 +53,17 @@ def _env_enum_required(name: str, enum_cls: type[Enum]) -> Enum:
     except ValueError as exc:
         msg = f"Invalid value for {name}: {value}"
         raise RuntimeError(msg) from exc
+    
+
+def _env_enum_optional(name: str, enum_cls: type[Enum], default: Enum) -> Enum:
+    value = _env_optional(name)
+    if value is None:
+        return default
+    try:
+        return enum_cls(value.lower())
+    except ValueError as exc:
+        msg = f"Invalid value for {name}: {value}"
+        raise RuntimeError(msg) from exc
 
 
 @lru_cache(maxsize=1)
@@ -64,5 +75,5 @@ def get_settings() -> Settings:
         token_ttl_seconds=_env_int_required("TOKEN_TTL_SECONDS"),
         session_ttl_seconds=_env_int_required("SESSION_TTL_SECONDS"),
         environment=_env_enum_required("ENVIRONMENT", Environment),
-        test_token=_env_optional("TEST_TOKEN"),
+        test_access_token=_env_optional("TEST_ACCESS_TOKEN"),
     )

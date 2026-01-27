@@ -47,12 +47,12 @@ class TokenService:
     В dev режиме поддерживает тестовые токены через verify_test_token().
     """
 
-    def __init__(self, *, application_id: str, secret_key: str, ttl_seconds: int, environment: Environment | str = "production", test_token: str | None = None) -> None:
+    def __init__(self, *, application_id: str, secret_key: str, ttl_seconds: int, environment: Environment | str = "production", test_access_token: str | None = None) -> None:
         private_key = f"{application_id}:{secret_key}"
         self._key = hashlib.sha256(private_key.encode()).digest()
         self._ttl_seconds = ttl_seconds
         self._environment = environment
-        self._test_token = test_token
+        self._test_access_token = test_access_token
 
     def verify_token(self, token: str, trace_id: str | None = None) -> TokenPayload:
         """Дешифрует, парсит и валидирует токен.
@@ -80,10 +80,10 @@ class TokenService:
         Используется для интеграционных тестов. Возвращает фиксированный профиль тестового пользователя.
         """
         _ = trace_id
-        if self._environment != Environment.DEVELOPMENT or not self._test_token:
+        if self._environment != Environment.DEVELOPMENT or not self._test_access_token:
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
         
-        if token != self._test_token:
+        if token != self._test_access_token:
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
         
         # Возвращаем фиксированный профиль тестового пользователя

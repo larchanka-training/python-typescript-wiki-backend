@@ -25,7 +25,7 @@ def get_token_service() -> TokenService:
         secret_key=settings.oauth_name_secret_key,
         ttl_seconds=settings.token_ttl_seconds,
         environment=settings.environment,
-        test_token=settings.test_token,
+        test_access_token=settings.test_access_token,
     )
 
 

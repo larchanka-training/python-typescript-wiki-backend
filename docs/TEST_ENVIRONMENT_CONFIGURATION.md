@@ -7,9 +7,9 @@ The `test_verity_test_token_returns_200` tests were failing due to database conn
 ### Root Causes
 
 1. **Missing Environment Configuration for Tests**
-   - Tests were not loading environment variables from `.env.development`
+   - Tests were not loading environment variables from `.env.local`
    - The `ENVIRONMENT` variable was not set to "Development" 
-   - The `TEST_TOKEN` variable was not available for test token verification
+   - The `TEST_ACCESS_TOKEN` variable was not available for test token verification
    - These variables are essential for the test token flow to work
 
 2. **Database Dependency Issue**
@@ -21,23 +21,23 @@ The `test_verity_test_token_returns_200` tests were failing due to database conn
 
 ### 1. **Test Configuration (conftest.py)**
 
-Updated [tests/conftest.py](tests/conftest.py) to load `.env.development` at test startup:
+Updated [tests/conftest.py](tests/conftest.py) to load `.env.local` at test startup:
 
 ```python
 from dotenv import load_dotenv
 
-# Load .env.development for test execution
+# Load .env.local for test execution
 # This ensures tests use the correct database URL, test token, and environment settings
-env_file = ROOT / ".env.development"
+env_file = ROOT / ".env.local"
 if env_file.exists():
     load_dotenv(env_file, override=True)
 ```
 
 **Benefits:**
-- Automatically applies `.env.development` settings for all tests
+- Automatically applies `.env.local` settings for all tests
 - Only affects test execution, not production code
 - Centralizes test environment configuration
-- Allows tests to access TEST_TOKEN and ENVIRONMENT=Development settings
+- Allows tests to access TEST_ACCESS_TOKEN and ENVIRONMENT=Development settings
 
 ### 2. **Test Token Verification (test_token_verify.py)**
 
@@ -93,9 +93,9 @@ Refactored the duplicate `test_token_endpoints.py` to match the working pattern:
 
 ## Environment Configuration
 
-### .env.development
+### .env.local
 
-The file is configured with development/test settings:
+The file is configured with local/test settings:
 
 ```dotenv
 # Database URL for local Docker development
@@ -113,7 +113,7 @@ SESSION_TTL_SECONDS=604800       # 7 days
 ENVIRONMENT=Development
 
 # Test token (only used in Development mode)
-TEST_TOKEN=32u5g34u45gi243u4g23iu
+TEST_ACCESS_TOKEN=32u5g34u45gi243u4g23iu
 ```
 
 **Important:** This file is **only** loaded by pytest (via conftest.py), not by production code.
@@ -122,9 +122,9 @@ TEST_TOKEN=32u5g34u45gi243u4g23iu
 
 | Setting | Production | Tests |
 |---------|-----------|-------|
-| DATABASE_URL | Real PostgreSQL | Docker container URL (from .env.development) |
-| ENVIRONMENT | Production | Development (from .env.development) |
-| TEST_TOKEN | Not available | Available via .env.development |
+| DATABASE_URL | Real PostgreSQL | Docker container URL (from .env.local) |
+| ENVIRONMENT | Production | Development (from .env.local) |
+| TEST_ACCESS_TOKEN | Not available | Available via .env.local |
 | DB Pool | Required | Disabled in tests (via _no_lifespan) |
 | Dependencies | Real implementations | Mocked with test doubles |
 
@@ -132,7 +132,7 @@ TEST_TOKEN=32u5g34u45gi243u4g23iu
 
 ### Test Token Verification Flow
 
-1. **conftest.py** loads `.env.development` (includes TEST_TOKEN)
+1. **conftest.py** loads `.env.local` (includes TEST_ACCESS_TOKEN)
 2. **Test client** is created with `_no_lifespan` (skips DB pool creation)
 3. **FakeAuthService** is injected via dependency override
 4. **FakeAuthService** returns hardcoded user without DB access
@@ -148,7 +148,7 @@ TEST_TOKEN=32u5g34u45gi243u4g23iu
 ## Files Modified
 
 1. [tests/conftest.py](tests/conftest.py)
-   - Added: Load `.env.development` at pytest startup
+   - Added: Load `.env.local` at pytest startup
 
 2. [tests/integration/test_token_verify.py](tests/integration/test_token_verify.py)
    - Updated: `test_verity_test_token_returns_200` to use FakeAuthService
@@ -208,7 +208,7 @@ def client_factory() -> Callable[..., TestClient]:
 
 ## Production Isolation
 
-The `.env.development` file is **NOT** used in production because:
+The `.env.local` file is **NOT** used in production because:
 
 1. **conftest.py** is only loaded by pytest (test runner)
 2. Production uses system environment variables or `.env` (if present)
