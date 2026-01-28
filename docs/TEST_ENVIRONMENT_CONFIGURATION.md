@@ -215,6 +215,59 @@ The `.env.local` file is **NOT** used in production because:
 3. `ENVIRONMENT=Production` would disable test token validation
 4. Database URL in production points to real PostgreSQL instance
 
+## GitHub Actions CI Configuration
+
+The `.github/workflows/ci.yml` file automatically configures environment variables for CI testing. It requires the following variables to be set:
+
+### Required GitHub Secrets (Sensitive Data)
+Set these in **Settings → Secrets and variables → Secrets**:
+
+- `DATABASE_URL` - PostgreSQL connection string
+- `OAUTH_NAME_APPLICATION_ID` - OAuth app ID
+- `OAUTH_NAME_SECRET_KEY` - OAuth secret key
+- `TEST_ACCESS_TOKEN` - Test token for CI tests
+
+### Required GitHub Variables (Public Configuration)
+Set these in **Settings → Secrets and variables → Variables**:
+
+- `ENVIRONMENT` - Set to `Development`
+- `TOKEN_TTL_SECONDS` - Set to `86400`
+- `SESSION_TTL_SECONDS` - Set to `604800`
+
+### How CI Works
+
+1. GitHub Actions workflow triggers on push/PR
+2. Validates all 7 environment variables are set
+3. Generates `.env` file from secrets and variables
+4. Installs dependencies
+5. Runs: `python -m pytest -v`
+6. Reports results in PR
+
+### Setup Instructions (5 minutes)
+
+1. Go to your GitHub repository
+2. Click **Settings** → **Secrets and variables** → **Actions**
+3. Add 4 secrets (click "New repository secret"):
+   - `DATABASE_URL`
+   - `OAUTH_NAME_APPLICATION_ID`
+   - `OAUTH_NAME_SECRET_KEY`
+   - `TEST_ACCESS_TOKEN`
+4. Click **Variables** tab and add 3 variables:
+   - `ENVIRONMENT` = `Development`
+   - `TOKEN_TTL_SECONDS` = `86400`
+   - `SESSION_TTL_SECONDS` = `604800`
+5. Push code or trigger workflow - tests will run automatically
+
+### CI Environment Defaults
+
+When `.env.local` is missing (in CI), `conftest.py` applies sensible defaults:
+- `ENVIRONMENT` → `Development`
+- `TEST_ACCESS_TOKEN` → `test-token-placeholder` (if not provided)
+- `OAUTH_NAME_APPLICATION_ID` → `test-app` (if not provided)
+- `OAUTH_NAME_SECRET_KEY` → `test-secret` (if not provided)
+- `TOKEN_TTL_SECONDS` → `86400`
+- `SESSION_TTL_SECONDS` → `604800`
+
 ## Future Improvements
 
 1. Consider using pytest markers to categorize tests:
@@ -228,3 +281,4 @@ The `.env.local` file is **NOT** used in production because:
    - Setup/teardown test database schema
 
 4. Add environment validation in test setup
+

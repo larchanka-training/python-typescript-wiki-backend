@@ -4,13 +4,19 @@ FastAPI backend с подключением к PostgreSQL через `asyncpg`.
 
 ### Configuration
 
-Переменные окружения:
+Переменные окружения (обязательные):
 
-- `DATABASE_URL` (пример в `.env.example`)
-- `OAUTH_NAME_APPLICATION_ID`
-- `OAUTH_NAME_SECRET_KEY`
-- `TOKEN_TTL_SECONDS`
-- `SESSION_TTL_SECONDS`
+- `DATABASE_URL` - PostgreSQL connection string (пример в `.env.example`)
+- `ENVIRONMENT` - Deployment environment (Development/Staging/Production)
+- `OAUTH_NAME_APPLICATION_ID` - OAuth application identifier
+- `OAUTH_NAME_SECRET_KEY` - OAuth secret key
+- `TOKEN_TTL_SECONDS` - Access token lifetime (seconds)
+- `SESSION_TTL_SECONDS` - Session token lifetime (seconds)
+- `TEST_ACCESS_TOKEN` - Test token for Development mode
+
+**Для локальной разработки:** Скопируйте `.env.example` в `.env.local` и заполните значения.
+
+**Для GitHub Actions CI:** Добавьте переменные в Settings → Secrets and variables → Actions (см. [docs/TEST_ENVIRONMENT_CONFIGURATION.md](docs/TEST_ENVIRONMENT_CONFIGURATION.md)).
 
 См. также: `docs/Формат ошибок.md` (source of truth), `docs/errors.md` (краткая выжимка для фронта).
 Подробно про эндпойнт `/token`: `docs/token-endpoint.md`.
@@ -150,15 +156,26 @@ pip install -r requirements.txt
 docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
 ```
 
-3) Запустить приложение:
+3) Создать `.env.local` файл (скопируйте из `.env.example` и заполните):
+
+```bash
+cp .env.example .env.local
+nano .env.local
+```
+
+4) Запустить приложение:
 
 ```bash
 export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+export ENVIRONMENT="Development"
 export OAUTH_NAME_APPLICATION_ID="local-app"
 export OAUTH_NAME_SECRET_KEY="local-secret"
 export TOKEN_TTL_SECONDS=86400
+export SESSION_TTL_SECONDS=604800
 fastapi dev app/main.py --host 0.0.0.0 --port 8000
 ```
+
+Или используйте `.env.local` (будет загружена автоматически).
 
 Проверка подключения к БД: `GET /health/db`
 OpenAPI: `GET /docs`
@@ -204,12 +221,16 @@ curl -X POST http://localhost:8000/token \
 
 ### Testing
 
-Запуск тестов:
+Запуск тестов локально:
 
 ```bash
 pytest -q
 pytest --verbose
 ```
+
+Для локальной разработки: `.env.local` автоматически загружается в тестах.
+
+Для GitHub Actions CI: Добавьте 7 переменных (4 secrets + 3 variables) в GitHub Settings. Подробно: [docs/TEST_ENVIRONMENT_CONFIGURATION.md#github-actions-ci-configuration](docs/TEST_ENVIRONMENT_CONFIGURATION.md#github-actions-ci-configuration).
 
 Покрытые кейсы:
 - missing/empty token -> 400

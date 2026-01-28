@@ -33,17 +33,21 @@ jobs:
           set -euo pipefail
 
           : "${DATABASE_URL:?Missing DATABASE_URL}"
+          : "${ENVIRONMENT:?Missing ENVIRONMENT}"
           : "${OAUTH_NAME_APPLICATION_ID:?Missing OAUTH_NAME_APPLICATION_ID}"
           : "${OAUTH_NAME_SECRET_KEY:?Missing OAUTH_NAME_SECRET_KEY}"
           : "${TOKEN_TTL_SECONDS:?Missing TOKEN_TTL_SECONDS}"
           : "${SESSION_TTL_SECONDS:?Missing SESSION_TTL_SECONDS}"
+          : "${TEST_ACCESS_TOKEN:?Missing TEST_ACCESS_TOKEN}"
 
           cat > .env <<EOF
           DATABASE_URL=$DATABASE_URL
+          ENVIRONMENT=$ENVIRONMENT
           OAUTH_NAME_APPLICATION_ID=$OAUTH_NAME_APPLICATION_ID
           OAUTH_NAME_SECRET_KEY=$OAUTH_NAME_SECRET_KEY
           TOKEN_TTL_SECONDS=$TOKEN_TTL_SECONDS
           SESSION_TTL_SECONDS=$SESSION_TTL_SECONDS
+          TEST_ACCESS_TOKEN=$TEST_ACCESS_TOKEN
           EOF
 
           chmod 600 .env
@@ -51,10 +55,12 @@ jobs:
           echo ".env generated ($(wc -l < .env) lines)"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENVIRONMENT: ${{ vars.ENVIRONMENT }}
           OAUTH_NAME_APPLICATION_ID: ${{ secrets.OAUTH_NAME_APPLICATION_ID }}
           OAUTH_NAME_SECRET_KEY: ${{ secrets.OAUTH_NAME_SECRET_KEY }}
           TOKEN_TTL_SECONDS: ${{ vars.TOKEN_TTL_SECONDS }}
           SESSION_TTL_SECONDS: ${{ vars.SESSION_TTL_SECONDS }}
+          TEST_ACCESS_TOKEN: ${{ secrets.TEST_ACCESS_TOKEN }}
 
       - name: Install dependencies
         run: |
