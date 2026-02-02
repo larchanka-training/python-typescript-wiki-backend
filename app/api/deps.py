@@ -17,6 +17,7 @@ from app.services.auth_service import AuthService
 from app.services.session_service import SessionService
 from app.services.space_service import SpaceService
 from app.services.token_service import TokenService
+from app.services.user_service import UserService
 
 
 def get_token_service() -> TokenService:
@@ -78,3 +79,10 @@ def get_space_service(
 ) -> SpaceService:
     """Создаёт SpaceService."""
     return SpaceService(space_repository)
+
+
+def get_user_service(
+    user_repository: Annotated[UserRepository, Depends(get_user_repository)],
+) -> UserService:
+    """Создаёт UserService."""
+    return UserService(user_repository)

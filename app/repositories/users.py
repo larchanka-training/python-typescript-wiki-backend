@@ -128,3 +128,40 @@ class UserRepository:
             created_at=row["created_at"],
             last_login_at=row["last_login_at"],
         )
+
+    async def search_by_username(self, query: str, limit: int) -> list[UserProfile]:
+        """Search users by username (ILIKE)."""
+        rows = await self._connection.fetch(
+            """
+            SELECT
+                id,
+                telegram_id,
+                username,
+                first_name,
+                last_name,
+                photo_url,
+                permission,
+                created_at,
+                updated_at,
+                last_login_at
+            FROM users
+            WHERE username ILIKE $1
+            LIMIT $2;
+            """,
+            f"%{query}%",
+            limit,
+        )
+        return [
+            UserProfile(
+                id=row["id"],
+                telegram_id=row["telegram_id"],
+                username=row["username"],
+                first_name=row["first_name"],
+                last_name=row["last_name"],
+                photo_url=row["photo_url"],
+                permission=row["permission"],
+                created_at=row["created_at"],
+                last_login_at=row["last_login_at"],
+            )
+            for row in rows
+        ]
