@@ -17,9 +17,11 @@
 - Реализован endpoint `POST /token` и Pydantic схемы: `app/api/v1/routes/auth.py`, `app/api/v1/schemas/auth.py`.
 - Добавлен `TokenService` (AES-256-CBC + HMAC + PKCS#7 + TTL): `app/services/token_service.py`.
 - Обновлён сервис upsert и модель пользователя: `app/services/auth_service.py`, `app/services/models.py`, `app/repositories/users.py`, `app/models.py`.
+- Добавлен флаг `users.is_superuser` и логика первого суперпользователя.
 - Введён единый формат ошибок `{status,message,timestamp}` и enum кодов: `app/core/errors.py`.
 - Конфигурация и env-переменные: `app/core/config.py`, `.env.example`, `docker-compose.yml`, `docker-compose.mock.yml`.
 - Добавлена миграция `last_login_at` и `username` nullable: `alembic/versions/0003_add_last_login_at.py`.
+- Добавлена миграция ролей/пространств и `users.is_superuser`: `alembic/versions/0005_add_spaces_and_roles.py`.
 - Локальный mock issuer токенов (dev/test-only): `mock_oauth/app.py`.
 - Тесты: `tests/unit/test_token_service.py`, `tests/integration/test_token_verify.py`.
 - Обновлена документация: `docs/Архитектура бэкенда.md`, `docs/Миграции.md`, `docs/Формат ошибок.md` (source of truth), `docs/errors.md` (дубликат), `docs/project-structure.md`, `README.md`.
@@ -35,7 +37,8 @@
 3) Валидация payload: `telegram_id` (int), `created_at` (unix int), `username` (optional).
 4) TTL: `now - created_at > TOKEN_TTL_SECONDS` → 401 `OAUTH_CODE_INVALID`.
 5) Upsert пользователя по `telegram_id`, `last_login_at = now()`.
-6) Ответ: `200 OK` + `{ created, user }`.
+6) Если в системе ещё нет superuser — текущий пользователь становится `is_superuser = true`.
+7) Ответ: `200 OK` + `{ created, user }`.
 
 ## Контракт API
 
@@ -101,6 +104,7 @@ Docker compose:
 Изменения:
 - добавлен `last_login_at`;
 - `username` стал nullable.
+ - добавлен `users.is_superuser` (глобальная роль платформы).
 
 Применение:
 ```bash

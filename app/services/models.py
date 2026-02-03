@@ -23,6 +23,7 @@ class UserProfile:
     permission: str | None
     created_at: datetime
     last_login_at: datetime
+    is_superuser: bool = False
 
 
 @dataclass

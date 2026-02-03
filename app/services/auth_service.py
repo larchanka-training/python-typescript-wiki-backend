@@ -42,6 +42,7 @@ class AuthService:
                 photo_url=payload.photo_url,
                 permission=payload.permission,
             )
+            promoted = await self._user_repository.ensure_first_superuser(user.id)
         except Exception as exc:
             logger.exception(
                 "user upsert failed: telegram_id=%s trace_id=%s",
@@ -49,6 +50,9 @@ class AuthService:
                 trace_id,
             )
             raise AppError(status.HTTP_500_INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR) from exc
+
+        if promoted:
+            user.is_superuser = True
 
         logger.info(
             "user upserted: telegram_id=%s created=%s trace_id=%s",

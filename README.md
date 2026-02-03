@@ -120,7 +120,19 @@ curl -X POST http://localhost:8000/session \
 - `username` (nullable)
 - `first_name` / `last_name` / `photo_url` (nullable)
 - `permission` (nullable)
+- `is_superuser` (bool, default `false`) — глобальная роль платформы
 - `created_at`, `updated_at`, `last_login_at`
+
+Таблица `spaces`:
+- `id` (pk)
+- `name`
+- `deleted_at`, `delete_scheduled_at` (soft delete + окно восстановления)
+- `created_at`, `updated_at`
+
+Таблица `space_members`:
+- `space_id` (fk → spaces.id)
+- `user_id` (fk → users.id)
+- `role` (`owner`/`admin`/`editor`/`viewer`)
 
 ### Миграции (Alembic)
 
