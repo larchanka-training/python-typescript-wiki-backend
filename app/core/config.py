@@ -44,6 +44,6 @@ def get_settings() -> Settings:
         token_ttl_seconds=_env_int_required("TOKEN_TTL_SECONDS"),
         session_ttl_seconds=_env_int_required("SESSION_TTL_SECONDS"),
         cors_origins=[
-            origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://training.wiki,https://training.wiki").split(",")
+            origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",")
         ],
     )
