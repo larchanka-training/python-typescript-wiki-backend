@@ -85,7 +85,7 @@ def test_create_space_success_returns_201(client_factory: Callable[[object, obje
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces", json={"name": "New Space"}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
         )
 
     assert response.status_code == status.HTTP_201_CREATED
@@ -97,7 +97,7 @@ def test_create_space_missing_name_returns_400(client_factory: Callable[[object,
     space_service = FakeSpaceService(SPACE_ID)
 
     with client_factory(session_service, space_service) as client:
-        response = client.post("/spaces", json={"name": "   "}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
+        response = client.post("/api/v1/spaces", json={"name": "   "}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
@@ -108,7 +108,7 @@ def test_create_space_missing_session_returns_401(client_factory: Callable[[obje
     space_service = FakeSpaceService(SPACE_ID)
 
     with client_factory(session_service, space_service) as client:
-        response = client.post("/spaces", json={"name": "New Space"})
+        response = client.post("/api/v1/spaces", json={"name": "New Space"})
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["message"] == ErrorCode.SESSION_MISSING

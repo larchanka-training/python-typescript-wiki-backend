@@ -15,6 +15,7 @@ class Settings:
     oauth_name_secret_key: str
     token_ttl_seconds: int
     session_ttl_seconds: int
+    cors_origins: list[str]
 
 
 def _env_required(name: str) -> str:
@@ -42,4 +43,7 @@ def get_settings() -> Settings:
         oauth_name_secret_key=_env_required("OAUTH_NAME_SECRET_KEY"),
         token_ttl_seconds=_env_int_required("TOKEN_TTL_SECONDS"),
         session_ttl_seconds=_env_int_required("SESSION_TTL_SECONDS"),
+        cors_origins=[
+            origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",")
+        ],
     )
