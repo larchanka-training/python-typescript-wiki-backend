@@ -89,7 +89,7 @@ def test_search_users_success(client_factory):
     
     with client_factory(session_service, user_service) as client:
         response = client.get(
-            "/users/search",
+            "/api/v1/users/search",
             params={"q": "test"},
             headers={"Authorization": "Bearer valid-token"}
         )
@@ -115,7 +115,7 @@ def test_search_users_min_length(client_factory):
     
     with client_factory(session_service, user_service) as client:
         response = client.get(
-            "/users/search",
+            "/api/v1/users/search",
             params={"q": "te"},
             headers={"Authorization": "Bearer valid-token"}
         )
@@ -132,7 +132,7 @@ def test_search_users_max_length(client_factory):
     
     with client_factory(session_service, user_service) as client:
         response = client.get(
-            "/users/search",
+            "/api/v1/users/search",
             params={"q": "a" * 65},
             headers={"Authorization": "Bearer valid-token"}
         )
@@ -148,7 +148,7 @@ def test_search_users_unauthorized(client_factory):
     
     with client_factory(session_service, user_service) as client:
         response = client.get(
-            "/users/search",
+            "/api/v1/users/search",
             params={"q": "test"}
         )
 
@@ -163,7 +163,7 @@ def test_search_users_limit(client_factory):
     
     with client_factory(session_service, user_service) as client:
         response = client.get(
-            "/users/search",
+            "/api/v1/users/search",
             params={"q": "test", "limit": 5},
             headers={"Authorization": "Bearer valid-token"}
         )
