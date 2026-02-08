@@ -1,0 +1,66 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ main, master, develop, 'release/*', 'hotfix/*' ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Run Microsoft Security DevOps
+        uses: microsoft/security-devops-action@latest
+        id: msdo
+
+      - name: Generate .env
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${DATABASE_URL:?Missing DATABASE_URL}"
+          : "${OAUTH_NAME_APPLICATION_ID:?Missing OAUTH_NAME_APPLICATION_ID}"
+          : "${OAUTH_NAME_SECRET_KEY:?Missing OAUTH_NAME_SECRET_KEY}"
+          : "${TOKEN_TTL_SECONDS:?Missing TOKEN_TTL_SECONDS}"
+          : "${SESSION_TTL_SECONDS:?Missing SESSION_TTL_SECONDS}"
+
+          cat > .env <<EOF
+          DATABASE_URL=$DATABASE_URL
+          OAUTH_NAME_APPLICATION_ID=$OAUTH_NAME_APPLICATION_ID
+          OAUTH_NAME_SECRET_KEY=$OAUTH_NAME_SECRET_KEY
+          TOKEN_TTL_SECONDS=$TOKEN_TTL_SECONDS
+          SESSION_TTL_SECONDS=$SESSION_TTL_SECONDS
+          EOF
+
+          chmod 600 .env
+          test -s .env
+          echo ".env generated ($(wc -l < .env) lines)"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OAUTH_NAME_APPLICATION_ID: ${{ secrets.OAUTH_NAME_APPLICATION_ID }}
+          OAUTH_NAME_SECRET_KEY: ${{ secrets.OAUTH_NAME_SECRET_KEY }}
+          TOKEN_TTL_SECONDS: ${{ vars.TOKEN_TTL_SECONDS }}
+          SESSION_TTL_SECONDS: ${{ vars.SESSION_TTL_SECONDS }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -v

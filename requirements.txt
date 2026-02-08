@@ -1,4 +1,13 @@
 requests
 fastapi
 fastapi[standard]
+asyncpg
+SQLAlchemy
+alembic
+psycopg[binary]
 slowapi
+pre-commit>=3.0.0
+ruff>=0.14.9
+httpx
+pytest
+pycryptodome
