@@ -10,7 +10,9 @@ from typing import Annotated
 
 import asyncpg
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, Request, Response
+from app.core.config import get_settings
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -47,6 +49,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+settings = get_settings()
+
+# If "*" is in origins, we can't use allow_credentials=True
+allow_all_origins = "*" in settings.cors_origins
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=not allow_all_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=[TRACE_ID_HEADER],
+)
 
 # slowapi reads limiter from app.state and uses the exception handler for 429 responses.
 app.state.limiter = limiter
@@ -86,7 +102,10 @@ async def health_db(
     return {"ok": await connection.fetchval("SELECT 1") == 1}
 
 
-app.include_router(auth_routes.router)
-app.include_router(session_routes.router)
-app.include_router(spaces_routes.router)
-app.include_router(users_routes.router)
+api_router = APIRouter(prefix="/api/v1")
+api_router.include_router(auth_routes.router)
+api_router.include_router(session_routes.router)
+api_router.include_router(spaces_routes.router)
+api_router.include_router(users_routes.router)
+
+app.include_router(api_router)

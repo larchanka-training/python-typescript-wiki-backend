@@ -81,7 +81,7 @@ def test_verify_token_created_returns_200(client_factory: Callable[[object], Tes
     service = FakeAuthService(_sample_user(), created=True)
     with client_factory(service) as client:
         response = client.post(
-            "/token",
+            "/api/v1/token",
             json={"token": "test-token"},
         )
 
@@ -95,7 +95,7 @@ def test_verify_token_existing_returns_200(client_factory: Callable[[object], Te
     service = FakeAuthService(_sample_user(), created=False)
     with client_factory(service) as client:
         response = client.post(
-            "/token",
+            "/api/v1/token",
             json={"token": "test-token"},
         )
 
@@ -108,7 +108,7 @@ def test_verify_token_missing_returns_400(client_factory: Callable[[object], Tes
     """Missing token returns 400 + VALIDATION_ERROR."""
     service = FakeAuthService(_sample_user(), created=True)
     with client_factory(service) as client:
-        response = client.post("/token")
+        response = client.post("/api/v1/token")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
@@ -120,7 +120,7 @@ def test_verify_token_empty_returns_400(client_factory: Callable[[object], TestC
     """Blank token returns 400 + VALIDATION_ERROR."""
     service = FakeAuthService(_sample_user(), created=True)
     with client_factory(service) as client:
-        response = client.post("/token", json={"token": "   "})
+        response = client.post("/api/v1/token", json={"token": "   "})
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
@@ -132,7 +132,7 @@ def test_verify_token_invalid_returns_401(client_factory: Callable[[object], Tes
     service = FakeAuthServiceError(error)
     with client_factory(service) as client:
         response = client.post(
-            "/token",
+            "/api/v1/token",
             json={"token": "test-token"},
         )
 
@@ -146,7 +146,7 @@ def test_verify_token_internal_error_returns_500(client_factory: Callable[[objec
     service = FakeAuthServiceError(error)
     with client_factory(service) as client:
         response = client.post(
-            "/token",
+            "/api/v1/token",
             json={"token": "test-token"},
         )
 
