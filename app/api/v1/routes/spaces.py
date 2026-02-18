@@ -8,6 +8,8 @@ from fastapi import APIRouter, Body, Depends, Header, Request, status
 
 from app.api.deps import get_session_service, get_space_service
 from app.api.v1.schemas.spaces import SpaceCreateRequest, SpaceCreateResponse
+from app.api.v1.schemas.spaces import SpaceResponse
+from uuid import UUID
 from app.core.errors import AppError, ErrorCode, ErrorResponse
 from app.core.trace import get_trace_id
 from app.services.session_service import SessionService
@@ -123,3 +125,46 @@ def _extract_bearer_token(authorization: str | None) -> str:
     if scheme.lower() != "bearer" or not credentials.strip():
         raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR)
     return credentials.strip()
+
+
+@router.get("/spaces/{space_id}", response_model=SpaceResponse, summary="Get space by id")
+async def get_space_by_id(
+    request: Request,
+    space_id: str,
+    space_service: Annotated[SpaceService, Depends(get_space_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> SpaceResponse:
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+    session_data = await session_service.get_session(session_token, trace_id)
+    try:
+        space_uuid = UUID(space_id)
+        space = await space_service.get_space(space_uuid, session_data.user)
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.VALIDATION_ERROR)
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.VALIDATION_ERROR)
+
+    # Normalize response to include optional datetime fields if present
+    return SpaceResponse(**space)
+
+
+@router.delete("/spaces/{space_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Soft-delete a space")
+async def delete_space(
+    request: Request,
+    space_id: str,
+    space_service: Annotated[SpaceService, Depends(get_space_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> None:
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+    session_data = await session_service.get_session(session_token, trace_id)
+    try:
+        space_uuid = UUID(space_id)
+        await space_service.delete_space(space_uuid, session_data.user)
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.VALIDATION_ERROR)
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.VALIDATION_ERROR)
