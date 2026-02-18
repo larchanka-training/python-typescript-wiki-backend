@@ -23,12 +23,23 @@ class SpaceCreateResponse(BaseModel):
 
 
 class SpaceResponse(BaseModel):
-    """Schema for returning space information."""
-    id: UUID = Field(..., description="UUID of the space")
-    name: str = Field(..., description="Name of the space")
-    deleted: bool = Field(False, description="Soft-deleted marker")
-    deleted_at: datetime | None = Field(None, description="When deletion was requested")
-    delete_scheduled_at: datetime | None = Field(None, description="When the space becomes hidden for non-admins")
+    """Schema for returning space information with soft-delete status.
+    
+    **Soft-delete fields:**
+    - `deleted`: True if space is soft-deleted; false if active
+    - `deleted_at`: Timestamp when deletion was requested (UTC); null if active
+    - `delete_scheduled_at`: Timestamp when space becomes hidden from non-admins (UTC); null if active
+    
+    **Visibility rules:**
+    - Active spaces: visible to all authenticated users
+    - Deleted ≤7 days: visible to owner+admin with deleted timestamps shown
+    - Deleted >7 days: visible to admin only with deleted timestamps shown
+    """
+    id: UUID = Field(..., description="UUID of the space (primary identifier)")
+    name: str = Field(..., description="Name of the space (max 255 characters)")
+    deleted: bool = Field(False, description="True if space is soft-deleted; false if active")
+    deleted_at: datetime | None = Field(None, description="Timestamp when deletion was initiated (ISO 8601 UTC); null for active spaces")
+    delete_scheduled_at: datetime | None = Field(None, description="Timestamp when space becomes hidden from non-admins (ISO 8601 UTC, typically 7 days after deleted_at); null for active spaces")
 
     model_config = {
         "json_schema_extra": {
