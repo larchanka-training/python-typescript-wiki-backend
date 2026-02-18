@@ -88,3 +88,14 @@ class SpaceRepository:
             deleted_at,
             delete_scheduled_at,
         )
+
+    async def reset_deleted(self, space_id: UUID) -> None:
+        """Reset deletion flags (restore soft-deleted space)."""
+        await self._connection.execute(
+            """
+            UPDATE spaces
+            SET deleted_at = NULL, delete_scheduled_at = NULL
+            WHERE id = $1;
+            """,
+            space_id,
+        )

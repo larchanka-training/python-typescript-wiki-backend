@@ -66,6 +66,37 @@ class SpaceService:
         """
         return await self._space_repository.create_space(name, user_id)
 
+    async def restore_space(self, space_id: UUID, user) -> None:
+        """Restore a soft-deleted space: only owner or superadmin allowed.
+
+        The space must be deleted and still visible to the user (within 7 days for owner).
+        """
+        # Fetch space
+        row = await self._space_repository.get_space_by_id(space_id)
+        if row is None:
+            raise ValueError("not found")
+
+        # Check if space is deleted
+        if row["deleted_at"] is None:
+            raise ValueError("not deleted")
+
+        now = datetime.now(timezone.utc)
+        delete_scheduled = row["delete_scheduled_at"]
+
+        # Superadmin can always restore
+        if user.permission == "admin":
+            is_allowed = True
+        else:
+            # Check if owner and within grace period
+            role = await self._space_repository.get_membership_role(space_id, user.id)
+            is_allowed = role == "owner" and delete_scheduled is not None and now < delete_scheduled
+
+        if not is_allowed:
+            raise PermissionError("forbidden")
+
+        # Reset deletion flags
+        await self._space_repository.reset_deleted(space_id)
+
     async def delete_space(self, space_id: UUID, user) -> None:
         """Soft-delete a space: only owner or superadmin allowed.
 

@@ -168,3 +168,27 @@ async def delete_space(
         raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.VALIDATION_ERROR)
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.VALIDATION_ERROR)
+
+
+@router.patch("/spaces/{space_id}/restore", response_model=SpaceResponse, summary="Restore a soft-deleted space")
+async def restore_space(
+    request: Request,
+    space_id: str,
+    space_service: Annotated[SpaceService, Depends(get_space_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> SpaceResponse:
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+    session_data = await session_service.get_session(session_token, trace_id)
+    try:
+        space_uuid = UUID(space_id)
+        await space_service.restore_space(space_uuid, session_data.user)
+        # Fetch and return the restored space
+        space = await space_service.get_space(space_uuid, session_data.user)
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.VALIDATION_ERROR)
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.VALIDATION_ERROR)
+
+    return SpaceResponse(**space)
