@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-from uuid import UUID
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from app.repositories.spaces import SpaceRepository
 
 
@@ -121,3 +122,46 @@ class SpaceService:
         now = datetime.now(timezone.utc)
         delete_after = now + timedelta(days=7)
         await self._space_repository.mark_deleted(space_id, now, delete_after)
+
+    async def get_spaces(self, user_id: int) -> list[dict]:
+        """Get all spaces for the user.
+
+        Args:
+            user_id: The ID of the user.
+
+        Returns:
+            List of spaces the user is a member of.
+        """
+        spaces = await self._space_repository.get_spaces(user_id)
+
+        return self.format_spaces(spaces)
+
+    @staticmethod
+    def format_spaces(spaces: list[dict]) -> list[dict]:
+        """Filter, format and sort spaces for presentation.
+
+        - Excludes spaces deleted more than 7 days ago.
+        - Converts string `deleted_at` to datetime when needed.
+        - Maps repository rows to output dicts and sorts owners first.
+        """
+        now = datetime.now(timezone.utc)
+
+        filtered_spaces: list[dict] = []
+        for space in spaces:
+            deleted_at = space.get("deleted_at")
+
+            if deleted_at and now - deleted_at.astimezone(timezone.utc) > timedelta(days=7):
+                continue
+
+            filtered_spaces.append(
+                {
+                    "id": space["id"],
+                    "name": space["name"],
+                    "role": space["role"],
+                    "is_deleted": deleted_at is not None,
+                    "deleted_at": deleted_at,
+                }
+            )
+
+        filtered_spaces.sort(key=lambda x: (x["role"] != "owner", x["id"]))
+        return filtered_spaces

@@ -52,3 +52,35 @@ class SpaceResponse(BaseModel):
             }
         }
     }
+
+
+class SpaceListItem(BaseModel):
+    """Schema for a space in the list."""
+
+    id: UUID = Field(..., description="UUID of the space")
+    name: str = Field(..., description="Name of the space")
+    role: str = Field(..., description="User's role in the space")
+    is_deleted: bool = Field(..., description="Whether the space is deleted")
+    deleted_at: datetime | None = Field(None, description="Timestamp when the space was deleted")
+
+
+class SpaceListResponse(BaseModel):
+    """Schema for the spaces list response."""
+
+    spaces: list[SpaceListItem] = Field(..., description="List of spaces")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "spaces": [
+                    {
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "name": "My Space",
+                        "role": "owner",
+                        "is_deleted": False,
+                        "deleted_at": None,
+                    }
+                ]
+            }
+        }
+    }
