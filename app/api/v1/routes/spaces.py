@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+from uuid import UUID
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Header, Request, status
 
 from app.api.deps import get_session_service, get_space_service
-from app.api.v1.schemas.spaces import SpaceCreateRequest, SpaceCreateResponse
-from app.api.v1.schemas.spaces import SpaceResponse
-from uuid import UUID
+from app.api.v1.schemas.spaces import SpaceCreateRequest, SpaceCreateResponse, SpaceListResponse, SpaceResponse
 from app.core.errors import AppError, ErrorCode, ErrorResponse
 from app.core.trace import get_trace_id
-from app.services.session_service import SessionService
-from app.services.space_service import SpaceService
+from app.services.session_service import SessionService  # noqa: TC001
+from app.services.space_service import SpaceService  # noqa: TC001
 
 router = APIRouter(tags=["spaces"])
 
@@ -115,6 +114,36 @@ async def create_space(
 
     space_id = await space_service.create_space(body.name, user_id)
     return SpaceCreateResponse(id=space_id)
+
+
+@router.get(
+    "/spaces",
+    response_model=SpaceListResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Get user's spaces",
+)
+async def get_spaces(
+    request: Request,
+    space_service: Annotated[SpaceService, Depends(get_space_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> SpaceListResponse:
+    """Gets all spaces for the authenticated user.
+
+    Requires session authentication via Bearer token.
+    Possible statuses: 200 OK; 400 VALIDATION_ERROR; 401 SESSION_MISSING/SESSION_EXPIRED;
+    500 INTERNAL_ERROR.
+    """
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    # Check session and get user_id
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+
+    spaces = await space_service.get_spaces(user_id)
+    return SpaceListResponse(spaces=spaces)
 
 
 def _extract_bearer_token(authorization: str | None) -> str:

@@ -1,3 +1,7 @@
+[project]
+name = "backend-for-wiki"
+version = "0.0.0"
+
 [tool.ruff]
 line-length = 120
 fix = true
