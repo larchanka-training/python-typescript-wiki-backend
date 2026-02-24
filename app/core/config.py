@@ -20,6 +20,7 @@ class Settings:
     session_ttl_seconds: int
     environment: Environment
     test_access_token: str | None = None
+    cors_origins: list[str]
 
 
 def _env_optional(name: str, default: str | None = None) -> str | None:
@@ -76,4 +77,7 @@ def get_settings() -> Settings:
         session_ttl_seconds=_env_int_required("SESSION_TTL_SECONDS"),
         environment=_env_enum_required("ENVIRONMENT", Environment),
         test_access_token=_env_optional("TEST_ACCESS_TOKEN"),
+        cors_origins=[
+            origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",")
+        ],
     )

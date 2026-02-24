@@ -27,8 +27,6 @@ _JWT_DOT_COUNT = 2
 class TokenPayload(BaseModel):
     """Payload токена после дешифрования (структура по oauth.name)."""
 
-    model_config = ConfigDict(strict=True)
-
     telegram_id: int
     username: str | None
     created_at: int
@@ -59,18 +57,23 @@ class TokenService:
 
         Ошибки криптографии/формата/TTL возвращают OAUTH_CODE_INVALID.
         """
-        _ = trace_id
-        # Никогда не логируем raw token; при необходимости — только безопасный fingerprint.
-        payload = self._decrypt(token)
         try:
+            payload = self._decrypt(token)
             data = TokenPayload.model_validate(payload)
+        except AppError:
+            raise
         except ValidationError as exc:
-            logger.info("token payload validation failed: trace_id=%s", trace_id)
+            logger.warning("token payload validation failed: trace_id=%s errors=%s", trace_id, exc.errors())
+            raise AppError(401, ErrorCode.OAUTH_CODE_INVALID) from exc
+        except Exception as exc:
+            logger.exception("token decryption failed: trace_id=%s", trace_id)
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID) from exc
 
         now = int(time.time())
         # TTL считается по created_at из токена (unix timestamp, UTC).
         if now - data.created_at > self._ttl_seconds:
+            logger.warning("token expired: trace_id=%s created_at=%s now=%s ttl=%s", 
+                           trace_id, data.created_at, now, self._ttl_seconds)
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
         return data
 
@@ -99,9 +102,15 @@ class TokenService:
         )
 
     def _decrypt(self, token: str) -> dict[str, Any]:
-        raw = _b64decode(token)
+        try:
+            raw = _b64decode(token)
+        except Exception as exc:
+            logger.warning("token b64decode failed: %s", exc)
+            raise AppError(401, ErrorCode.OAUTH_CODE_INVALID) from exc
+
         # Формат токена: iv(16) + hmac(32) + ciphertext (см. oauth.name docs/пример).
         if len(raw) <= _IV_LENGTH + _HMAC_LENGTH:
+            logger.warning("token too short: length=%s", len(raw))
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
 
         iv = raw[:_IV_LENGTH]
@@ -111,20 +120,27 @@ class TokenService:
         computed_hash = hmac.new(self._key, ciphertext + iv, hashlib.sha256).digest()
         # Сравнение HMAC в constant-time для защиты от timing атак.
         if not hmac.compare_digest(computed_hash, expected_hash):
+            logger.warning("token hmac mismatch")
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
 
         cipher = AES.new(self._key, AES.MODE_CBC, iv)
         # AES-256-CBC + PKCS#7 unpad, затем decode UTF-8.
         padded = cipher.decrypt(ciphertext)
-        plaintext = _pkcs7_unpad(padded)
+        try:
+            plaintext = _pkcs7_unpad(padded)
+        except Exception as exc:
+            logger.warning("token pkcs7_unpad failed: %s", exc)
+            raise AppError(401, ErrorCode.OAUTH_CODE_INVALID) from exc
 
         try:
             text = plaintext.decode("utf-8")
         except UnicodeDecodeError as exc:
+            logger.warning("token utf-8 decode failed: %s", exc)
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID) from exc
 
         payload = _parse_payload(text)
         if not isinstance(payload, dict):
+            logger.warning("token payload is not a dict: %s", type(payload))
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
         return payload
 

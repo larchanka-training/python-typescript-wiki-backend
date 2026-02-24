@@ -43,3 +43,59 @@ class SpaceRepository:
             )
 
             return space_id
+
+    async def get_space_by_id(self, space_id: UUID) -> dict | None:
+        """Return space row by id or None if not found."""
+        row = await self._connection.fetchrow(
+            """
+            SELECT id, name, deleted_at, delete_scheduled_at
+            FROM spaces
+            WHERE id = $1;
+            """,
+            space_id,
+        )
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "deleted_at": row["deleted_at"],
+            "delete_scheduled_at": row["delete_scheduled_at"],
+        }
+
+    async def get_membership_role(self, space_id: UUID, user_id: int) -> str | None:
+        """Return membership role for the user in the space or None."""
+        role = await self._connection.fetchval(
+            """
+            SELECT role
+            FROM space_memberships
+            WHERE space_id = $1 AND user_id = $2;
+            """,
+            space_id,
+            user_id,
+        )
+        return role
+
+    async def mark_deleted(self, space_id: UUID, deleted_at, delete_scheduled_at) -> None:
+        """Mark space as deleted (soft delete)."""
+        await self._connection.execute(
+            """
+            UPDATE spaces
+            SET deleted_at = $2, delete_scheduled_at = $3
+            WHERE id = $1;
+            """,
+            space_id,
+            deleted_at,
+            delete_scheduled_at,
+        )
+
+    async def reset_deleted(self, space_id: UUID) -> None:
+        """Reset deletion flags (restore soft-deleted space)."""
+        await self._connection.execute(
+            """
+            UPDATE spaces
+            SET deleted_at = NULL, delete_scheduled_at = NULL
+            WHERE id = $1;
+            """,
+            space_id,
+        )

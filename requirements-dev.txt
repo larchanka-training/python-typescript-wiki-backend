@@ -5,3 +5,4 @@ pluggy==1.6.0
 Pygments==2.19.2
 ruff>=0.14.9
 pre-commit>=3.0.0
+alembic

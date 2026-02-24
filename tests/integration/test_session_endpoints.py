@@ -101,7 +101,7 @@ def _sample_data() -> SessionData:
 def test_create_session_success_returns_200(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.post("/session", json={"token": "oauth-token"})
+        response = client.post("/api/v1/session", json={"token": "oauth-token"})
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["authenticated"] is True
@@ -111,7 +111,7 @@ def test_create_session_success_returns_200(client_factory: Callable[[object], T
 def test_create_session_missing_body_returns_400(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.post("/session")
+        response = client.post("/api/v1/session")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
@@ -120,7 +120,7 @@ def test_create_session_missing_body_returns_400(client_factory: Callable[[objec
 def test_create_session_empty_token_returns_400(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.post("/session", json={"token": "   "})
+        response = client.post("/api/v1/session", json={"token": "   "})
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
@@ -130,7 +130,7 @@ def test_create_session_invalid_returns_401(client_factory: Callable[[object], T
     error = AppError(status.HTTP_401_UNAUTHORIZED, ErrorCode.OAUTH_CODE_INVALID)
     service = FakeSessionServiceError(error)
     with client_factory(service) as client:
-        response = client.post("/session", json={"token": "bad-token"})
+        response = client.post("/api/v1/session", json={"token": "bad-token"})
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["message"] == ErrorCode.OAUTH_CODE_INVALID
@@ -139,7 +139,7 @@ def test_create_session_invalid_returns_401(client_factory: Callable[[object], T
 def test_get_session_missing_header_returns_401(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.get("/session")
+        response = client.get("/api/v1/session")
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["message"] == ErrorCode.SESSION_MISSING
@@ -148,7 +148,7 @@ def test_get_session_missing_header_returns_401(client_factory: Callable[[object
 def test_get_session_invalid_header_returns_400(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.get("/session", headers={"Authorization": "Token abc"})
+        response = client.get("/api/v1/session", headers={"Authorization": "Token abc"})
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
@@ -157,7 +157,7 @@ def test_get_session_invalid_header_returns_400(client_factory: Callable[[object
 def test_get_session_success_returns_200(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.get("/session", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
+        response = client.get("/api/v1/session", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["authenticated"] is True
@@ -167,7 +167,7 @@ def test_get_session_expired_returns_401(client_factory: Callable[[object], Test
     error = AppError(status.HTTP_401_UNAUTHORIZED, ErrorCode.SESSION_EXPIRED)
     service = FakeSessionServiceError(error)
     with client_factory(service) as client:
-        response = client.get("/session", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
+        response = client.get("/api/v1/session", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["message"] == ErrorCode.SESSION_EXPIRED
@@ -176,7 +176,7 @@ def test_get_session_expired_returns_401(client_factory: Callable[[object], Test
 def test_refresh_session_success_returns_200(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.post("/session/refresh", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
+        response = client.post("/api/v1/session/refresh", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["authenticated"] is True
@@ -185,7 +185,7 @@ def test_refresh_session_success_returns_200(client_factory: Callable[[object], 
 def test_refresh_session_missing_header_returns_401(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.post("/session/refresh")
+        response = client.post("/api/v1/session/refresh")
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["message"] == ErrorCode.SESSION_MISSING
@@ -194,7 +194,7 @@ def test_refresh_session_missing_header_returns_401(client_factory: Callable[[ob
 def test_delete_session_success_returns_200(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.delete("/session", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
+        response = client.delete("/api/v1/session", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["authenticated"] is False
@@ -203,7 +203,7 @@ def test_delete_session_success_returns_200(client_factory: Callable[[object], T
 def test_delete_session_missing_header_returns_401(client_factory: Callable[[object], TestClient]) -> None:
     service = FakeSessionService(_sample_data())
     with client_factory(service) as client:
-        response = client.delete("/session")
+        response = client.delete("/api/v1/session")
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["message"] == ErrorCode.SESSION_MISSING
