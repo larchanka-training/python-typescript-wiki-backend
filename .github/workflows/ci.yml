@@ -39,6 +39,7 @@ jobs:
           : "${TOKEN_TTL_SECONDS:?Missing TOKEN_TTL_SECONDS}"
           : "${SESSION_TTL_SECONDS:?Missing SESSION_TTL_SECONDS}"
           : "${TEST_ACCESS_TOKEN:?Missing TEST_ACCESS_TOKEN}"
+          : "${CORS_ORIGINS:?Missing CORS_ORIGINS}"
 
           cat > .env <<EOF
           DATABASE_URL=$DATABASE_URL
@@ -48,6 +49,7 @@ jobs:
           TOKEN_TTL_SECONDS=$TOKEN_TTL_SECONDS
           SESSION_TTL_SECONDS=$SESSION_TTL_SECONDS
           TEST_ACCESS_TOKEN=$TEST_ACCESS_TOKEN
+          CORS_ORIGINS=$CORS_ORIGINS
           EOF
 
           chmod 600 .env
@@ -61,6 +63,7 @@ jobs:
           TOKEN_TTL_SECONDS: ${{ vars.TOKEN_TTL_SECONDS }}
           SESSION_TTL_SECONDS: ${{ vars.SESSION_TTL_SECONDS }}
           TEST_ACCESS_TOKEN: ${{ secrets.TEST_ACCESS_TOKEN }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
 
       - name: Install dependencies
         run: |
