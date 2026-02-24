@@ -19,7 +19,7 @@ class Settings:
     token_ttl_seconds: int
     session_ttl_seconds: int
     environment: Environment
-    test_access_token: str | None = None
+    test_access_token: str | None
     cors_origins: list[str]
 
 
