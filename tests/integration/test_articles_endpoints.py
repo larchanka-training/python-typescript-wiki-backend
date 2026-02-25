@@ -3,11 +3,11 @@
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from unittest import TestCase
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
-import pytest
 
 from app.api.deps import get_article_service, get_session_service
 from app.core.errors import ErrorCode
@@ -76,113 +76,106 @@ class FakeArticleService:
         }
 
 
-@pytest.fixture
-def client_factory() -> Callable[[object, object], TestClient]:
-    """Build a TestClient with service dependency overrides."""
-    original_lifespan = app.router.lifespan_context
+class TestArticlesEndpoints(TestCase):
+    def setUp(self):
+        self.original_lifespan = app.router.lifespan_context
+        app.router.lifespan_context = _no_lifespan
 
-    def _factory(session_service: object, article_service: object) -> TestClient:
+    def tearDown(self):
+        app.dependency_overrides.clear()
+        app.router.lifespan_context = self.original_lifespan
+
+    def _create_client(self, session_service, article_service):
         app.dependency_overrides[get_session_service] = lambda: session_service
         app.dependency_overrides[get_article_service] = lambda: article_service
-        app.router.lifespan_context = _no_lifespan
         return TestClient(app)
 
-    yield _factory
-    app.dependency_overrides.clear()
-    app.router.lifespan_context = original_lifespan
-
-
-def _sample_session_data() -> SessionData:
-    now = datetime.now(timezone.utc)
-    user = UserProfile(
-        id=1,
-        telegram_id=123456,
-        username="user",
-        first_name=None,
-        last_name=None,
-        photo_url=None,
-        permission=None,
-        created_at=now,
-        last_login_at=now,
-    )
-    return SessionData(user=user, expires_at=now, session_token=SESSION_TOKEN)
-
-
-def test_create_article_success_returns_201(client_factory: Callable[[object, object], TestClient]) -> None:
-    session_service = FakeSessionService(_sample_session_data())
-    article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-    space_id = uuid4()
-
-    with client_factory(session_service, article_service) as client:
-        response = client.post(
-            f"/api/v1/spaces/{space_id}/articles",
-            json={"title": "New Article", "content": "# Content"},
-            headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+    def _sample_session_data(self):
+        now = datetime.now(timezone.utc)
+        user = UserProfile(
+            id=1,
+            telegram_id=123456,
+            username="user",
+            first_name=None,
+            last_name=None,
+            photo_url=None,
+            permission=None,
+            created_at=now,
+            last_login_at=now,
         )
+        return SessionData(user=user, expires_at=now, session_token=SESSION_TOKEN)
 
-    assert response.status_code == status.HTTP_201_CREATED
-    assert response.json()["id"] == str(ARTICLE_ID)
+    def test_create_article_success_returns_201(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+        space_id = uuid4()
 
+        with self._create_client(session_service, article_service) as client:
+            response = client.post(
+                f"/api/v1/spaces/{space_id}/articles",
+                json={"title": "New Article", "content": "# Content"},
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            )
 
-def test_create_article_empty_title_returns_400(client_factory: Callable[[object, object], TestClient]) -> None:
-    session_service = FakeSessionService(_sample_session_data())
-    article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-    space_id = uuid4()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["id"], str(ARTICLE_ID))
 
-    with client_factory(session_service, article_service) as client:
-        response = client.post(
-            f"/api/v1/spaces/{space_id}/articles",
-            json={"title": "", "content": "# Content"},
-            headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
-        )
+    def test_create_article_empty_title_returns_400(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+        space_id = uuid4()
 
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
+        with self._create_client(session_service, article_service) as client:
+            response = client.post(
+                f"/api/v1/spaces/{space_id}/articles",
+                json={"title": "", "content": "# Content"},
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            )
 
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["message"], ErrorCode.VALIDATION_ERROR)
 
-def test_create_article_missing_session_returns_401(client_factory: Callable[[object, object], TestClient]) -> None:
-    session_service = FakeSessionService(_sample_session_data())
-    article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-    space_id = uuid4()
+    def test_create_article_missing_session_returns_401(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+        space_id = uuid4()
 
-    with client_factory(session_service, article_service) as client:
-        response = client.post(
-            f"/api/v1/spaces/{space_id}/articles",
-            json={"title": "New Article", "content": "# Content"}
-        )
+        with self._create_client(session_service, article_service) as client:
+            response = client.post(
+                f"/api/v1/spaces/{space_id}/articles",
+                json={"title": "New Article", "content": "# Content"}
+            )
 
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert response.json()["message"] == ErrorCode.SESSION_MISSING
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.json()["message"], ErrorCode.SESSION_MISSING)
 
+    def test_get_article_versions_success_returns_200(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
 
-def test_get_article_versions_success_returns_200(client_factory: Callable[[object, object], TestClient]) -> None:
-    session_service = FakeSessionService(_sample_session_data())
-    article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+        with self._create_client(session_service, article_service) as client:
+            response = client.get(
+                f"/api/v1/articles/{ARTICLE_ID}/versions",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            )
 
-    with client_factory(session_service, article_service) as client:
-        response = client.get(
-            f"/api/v1/articles/{ARTICLE_ID}/versions",
-            headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
-        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], str(VERSION_ID))
+        self.assertEqual(data[0]["title"], "Test Article")
 
-    assert response.status_code == status.HTTP_200_OK
-    data = response.json()
-    assert len(data) == 1
-    assert data[0]["id"] == str(VERSION_ID)
-    assert data[0]["title"] == "Test Article"
+    def test_get_article_version_success_returns_200(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
 
+        with self._create_client(session_service, article_service) as client:
+            response = client.get(
+                f"/api/v1/article-versions/{VERSION_ID}",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            )
 
-def test_get_article_version_success_returns_200(client_factory: Callable[[object, object], TestClient]) -> None:
-    session_service = FakeSessionService(_sample_session_data())
-    article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-
-    with client_factory(session_service, article_service) as client:
-        response = client.get(
-            f"/api/v1/article-versions/{VERSION_ID}",
-            headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
-        )
-
-    assert response.status_code == status.HTTP_200_OK
-    data = response.json()
-    assert data["id"] == str(VERSION_ID)
-    assert data["title"] == "Test Article"
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["id"], str(VERSION_ID))
+        self.assertEqual(data["title"], "Test Article")
