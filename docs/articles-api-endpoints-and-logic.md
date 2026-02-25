@@ -12,7 +12,8 @@
 - [Контракт эндпойнтов](#контракт-эндпойнтов)
   - [POST /spaces/{space_id}/articles](#post-spacesspace_idarticles)
   - [GET /articles/{article_id}/versions](#get-articlesarticle_idversions)
-  - [GET /article-versions/{version_id}](#get-article-versionsversion_id)
+  - [GET /articles/{article_id}](#get-articlesarticle_id)
+  - [GET /articles/{article_id}/{version_id}](#get-articlesarticle_idversion_id)
 - [Единый формат ошибок](#единый-формат-ошибок)
 - [Тестовые сценарии](#тестовые-сценарии)
 
@@ -103,8 +104,29 @@
 - 403 FORBIDDEN: нет доступа к пространству
 - 404 NOT_FOUND: статья не найдена
 
-### GET /article-versions/{version_id}
-Возвращает конкретную версию статьи.
+### GET /articles/{article_id}
+Возвращает последнюю версию статьи.
+
+**Успешный ответ (200):**
+```json
+{
+  "id": "uuid",
+  "article_id": "uuid",
+  "version_number": 1,
+  "title": "string",
+  "content": "string (MD)",
+  "author_id": 1,
+  "created_at": "2026-01-01T12:00:00Z"
+}
+```
+
+**Ошибки:**
+- 401 SESSION_MISSING/SESSION_EXPIRED
+- 403 FORBIDDEN: нет доступа к пространству
+- 404 NOT_FOUND: статья не найдена или нет версий
+
+### GET /articles/{article_id}/{version_id}
+Возвращает конкретную версию статьи по ID версии.
 
 **Успешный ответ (200):**
 ```json
@@ -123,6 +145,7 @@
 - 401 SESSION_MISSING/SESSION_EXPIRED
 - 403 FORBIDDEN: нет доступа к пространству
 - 404 NOT_FOUND: версия не найдена
+- 400 VALIDATION_ERROR: версия не принадлежит указанной статье
 
 ---
 
@@ -136,4 +159,5 @@
 2. Создание статьи не-владельцем — 403.
 3. Получение версий статьи участником — успех.
 4. Получение версий статьи не-участником — 403.
-5. Получение конкретной версии — успех.
+5. Получение последней версии статьи — успех.
+6. Получение конкретной версии статьи — успех.

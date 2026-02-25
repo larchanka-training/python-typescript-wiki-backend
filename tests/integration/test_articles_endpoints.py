@@ -62,8 +62,21 @@ class FakeArticleService:
             }
         ]
 
-    async def get_article_version(self, version_id: UUID, user_id: int) -> dict:
-        _ = version_id, user_id
+    async def get_latest_article_version(self, article_id: UUID, user_id: int) -> dict:
+        _ = article_id, user_id
+        now = datetime.now(timezone.utc)
+        return {
+            "id": self._version_id,
+            "article_id": ARTICLE_ID,
+            "version_number": 1,
+            "title": "Test Article",
+            "content": "# Test Content",
+            "author_id": 1,
+            "created_at": now,
+        }
+
+    async def get_article_version(self, article_id: UUID, version_id: UUID, user_id: int) -> dict:
+        _ = article_id, version_id, user_id
         now = datetime.now(timezone.utc)
         return {
             "id": self._version_id,
@@ -165,13 +178,28 @@ class TestArticlesEndpoints(TestCase):
         self.assertEqual(data[0]["id"], str(VERSION_ID))
         self.assertEqual(data[0]["title"], "Test Article")
 
+    def test_get_article_success_returns_200(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.get(
+                f"/api/v1/articles/{ARTICLE_ID}",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["id"], str(VERSION_ID))
+        self.assertEqual(data["title"], "Test Article")
+
     def test_get_article_version_success_returns_200(self):
         session_service = FakeSessionService(self._sample_session_data())
         article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
 
         with self._create_client(session_service, article_service) as client:
             response = client.get(
-                f"/api/v1/article-versions/{VERSION_ID}",
+                f"/api/v1/articles/{ARTICLE_ID}/{VERSION_ID}",
                 headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
             )
 

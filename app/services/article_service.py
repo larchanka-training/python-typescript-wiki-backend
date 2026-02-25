@@ -66,17 +66,13 @@ class ArticleService:
         versions = await self._article_version_repository.get_versions_by_article(article_id)
         return versions
 
-    async def get_article_version(self, version_id: UUID, user_id: int) -> dict:
-        """Get a specific version of an article.
+    async def get_latest_article_version(self, article_id: UUID, user_id: int) -> dict:
+        """Get the latest version of an article.
 
         User must have access to the space.
         """
-        version = await self._article_version_repository.get_version_by_id(version_id)
-        if not version:
-            raise ValueError("Version not found")
-
         # Get article to check space
-        article = await self._article_repository.get_article_by_id(version["article_id"])
+        article = await self._article_repository.get_article_by_id(article_id)
         if not article:
             raise ValueError("Article not found")
 
@@ -84,5 +80,36 @@ class ArticleService:
         role = await self._space_repository.get_membership_role(article["space_id"], user_id)
         if role is None:
             raise PermissionError("Access denied")
+
+        # Get latest version
+        version = await self._article_version_repository.get_latest_version_by_article(article_id)
+        if not version:
+            raise ValueError("No versions found for article")
+
+        return version
+
+    async def get_article_version(self, article_id: UUID, version_id: UUID, user_id: int) -> dict:
+        """Get a specific version of an article.
+
+        User must have access to the space.
+        """
+        # First check if article exists and user has access
+        article = await self._article_repository.get_article_by_id(article_id)
+        if not article:
+            raise ValueError("Article not found")
+
+        # Check access to space
+        role = await self._space_repository.get_membership_role(article["space_id"], user_id)
+        if role is None:
+            raise PermissionError("Access denied")
+
+        # Get the version
+        version = await self._article_version_repository.get_version_by_id(version_id)
+        if not version:
+            raise ValueError("Version not found")
+
+        # Verify the version belongs to the requested article
+        if version["article_id"] != article_id:
+            raise ValueError("Version does not belong to the specified article")
 
         return version
