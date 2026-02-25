@@ -198,7 +198,46 @@ async def get_article_versions(
 
 
 @router.get(
-    "/article-versions/{version_id}",
+    "/articles/{article_id}",
+    response_model=ArticleVersionResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Get the latest version of an article",
+)
+async def get_article(
+    request: Request,
+    article_id: UUID,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> ArticleVersionResponse:
+    """Gets the latest version of the specified article.
+
+    User must have access to the space containing the article.
+    Requires session authentication via Bearer token.
+    Possible statuses: 200 OK; 401 SESSION_MISSING/SESSION_EXPIRED;
+    403 FORBIDDEN; 404 NOT_FOUND; 500 INTERNAL_ERROR.
+    """
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    # Check session and get user_id
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+
+    try:
+        version = await article_service.get_latest_article_version(article_id, user_id)
+        return ArticleVersionResponse(**version)
+    except ValueError as e:
+        if "not found" in str(e):
+            raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
+        raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
+@router.get(
+    "/articles/{article_id}/{version_id}",
     response_model=ArticleVersionResponse,
     status_code=status.HTTP_200_OK,
     responses=RESPONSES,
@@ -206,6 +245,7 @@ async def get_article_versions(
 )
 async def get_article_version(
     request: Request,
+    article_id: UUID,
     version_id: UUID,
     article_service: Annotated[ArticleService, Depends(get_article_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
@@ -226,11 +266,13 @@ async def get_article_version(
     user_id = session_data.user.id
 
     try:
-        version = await article_service.get_article_version(version_id, user_id)
+        version = await article_service.get_article_version(article_id, version_id, user_id)
         return ArticleVersionResponse(**version)
     except ValueError as e:
         if "not found" in str(e):
             raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
+        if "does not belong" in str(e):
+            raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
         raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None

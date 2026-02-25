@@ -119,6 +119,75 @@ class TestArticleService(TestCase):
 
         asyncio.run(run_test())
 
+    def test_get_latest_article_version_success(self):
+        article_id = uuid4()
+        space_id = uuid4()
+        user_id = 1
+        version = {"id": uuid4(), "article_id": article_id, "version_number": 1}
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        self.article_service._space_repository.get_membership_role.return_value = "member"
+        self.article_service._article_version_repository.get_latest_version_by_article.return_value = version
+
+        async def run_test():
+            result = await self.article_service.get_latest_article_version(article_id, user_id)
+            assert result == version
+            self.article_service._article_repository.get_article_by_id.assert_called_once_with(article_id)
+            self.article_service._space_repository.get_membership_role.assert_called_once_with(space_id, user_id)
+            self.article_service._article_version_repository.get_latest_version_by_article.assert_called_once_with(article_id)
+
+        asyncio.run(run_test())
+
+    def test_get_latest_article_version_not_found(self):
+        article_id = uuid4()
+        user_id = 1
+
+        self.article_service._article_repository.get_article_by_id.return_value = None
+
+        async def run_test():
+            try:
+                await self.article_service.get_latest_article_version(article_id, user_id)
+                assert False, "Expected ValueError"
+            except ValueError as e:
+                assert str(e) == "Article not found"
+
+        asyncio.run(run_test())
+
+    def test_get_latest_article_version_no_access(self):
+        article_id = uuid4()
+        user_id = 1
+        space_id = uuid4()
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        self.article_service._space_repository.get_membership_role.return_value = None
+
+        async def run_test():
+            try:
+                await self.article_service.get_latest_article_version(article_id, user_id)
+                assert False, "Expected PermissionError"
+            except PermissionError as e:
+                assert str(e) == "Access denied"
+
+        asyncio.run(run_test())
+
+    def test_get_latest_article_version_no_versions(self):
+        article_id = uuid4()
+        user_id = 1
+        space_id = uuid4()
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        self.article_service._space_repository.get_membership_role.return_value = "member"
+        self.article_service._article_version_repository.get_latest_version_by_article.return_value = None
+
+        async def run_test():
+            try:
+                await self.article_service.get_latest_article_version(article_id, user_id)
+                assert False, "Expected ValueError"
+            except ValueError as e:
+                assert str(e) == "No versions found for article"
+
+        asyncio.run(run_test())
+
     def test_get_article_version_success(self):
         version_id = uuid4()
         article_id = uuid4()
@@ -126,30 +195,55 @@ class TestArticleService(TestCase):
         user_id = 1
         version = {"id": version_id, "article_id": article_id}
 
-        self.article_service._article_version_repository.get_version_by_id.return_value = version
         self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
         self.article_service._space_repository.get_membership_role.return_value = "member"
+        self.article_service._article_version_repository.get_version_by_id.return_value = version
 
         async def run_test():
-            result = await self.article_service.get_article_version(version_id, user_id)
+            result = await self.article_service.get_article_version(article_id, version_id, user_id)
             assert result == version
-            self.article_service._article_version_repository.get_version_by_id.assert_called_once_with(version_id)
             self.article_service._article_repository.get_article_by_id.assert_called_once_with(article_id)
             self.article_service._space_repository.get_membership_role.assert_called_once_with(space_id, user_id)
+            self.article_service._article_version_repository.get_version_by_id.assert_called_once_with(version_id)
 
         asyncio.run(run_test())
 
     def test_get_article_version_not_found(self):
+        article_id = uuid4()
         version_id = uuid4()
         user_id = 1
+        space_id = uuid4()
 
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        self.article_service._space_repository.get_membership_role.return_value = "member"
         self.article_service._article_version_repository.get_version_by_id.return_value = None
 
         async def run_test():
             try:
-                await self.article_service.get_article_version(version_id, user_id)
+                await self.article_service.get_article_version(article_id, version_id, user_id)
                 assert False, "Expected ValueError"
             except ValueError as e:
                 assert str(e) == "Version not found"
+
+        asyncio.run(run_test())
+
+    def test_get_article_version_wrong_article(self):
+        article_id = uuid4()
+        wrong_article_id = uuid4()
+        version_id = uuid4()
+        user_id = 1
+        space_id = uuid4()
+        version = {"id": version_id, "article_id": wrong_article_id}
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        self.article_service._space_repository.get_membership_role.return_value = "member"
+        self.article_service._article_version_repository.get_version_by_id.return_value = version
+
+        async def run_test():
+            try:
+                await self.article_service.get_article_version(article_id, version_id, user_id)
+                assert False, "Expected ValueError"
+            except ValueError as e:
+                assert str(e) == "Version does not belong to the specified article"
 
         asyncio.run(run_test())
