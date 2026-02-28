@@ -58,6 +58,18 @@ class ArticleRepository:
         )
         return [dict(row) for row in rows]
 
+    async def update_article_title(self, article_id: UUID, title: str) -> None:
+        """Update the title of an existing article and touch updated_at."""
+        await self._connection.execute(
+            """
+            UPDATE articles
+            SET title = $1, updated_at = now()
+            WHERE id = $2;
+            """,
+            title,
+            article_id,
+        )
+
 
 class ArticleVersionRepository:
     """Repository for article versions (asyncpg)."""

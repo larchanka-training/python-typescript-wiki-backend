@@ -88,6 +88,44 @@ class ArticleService:
 
         return version
 
+    async def update_article(
+        self,
+        article_id: UUID,
+        title: str,
+        content: str,
+        user_id: int,
+        user_permission: str | None,
+    ) -> UUID:
+        """Update an existing article, creating a new version.
+
+        Only the space owner or superadmin may perform updates.
+        """
+        # fetch article and check existence
+        article = await self._article_repository.get_article_by_id(article_id)
+        if not article:
+            raise ValueError("Article not found")
+
+        # permission check: owner or admin
+        role = await self._space_repository.get_membership_role(article["space_id"], user_id)
+        if role != "owner" and user_permission != "admin":
+            raise PermissionError("Only space owner or admin can update articles")
+
+        # validate title
+        if not title.strip():
+            raise ValueError("Title cannot be empty")
+
+        # update article record
+        await self._article_repository.update_article_title(article_id, title.strip())
+
+        # determine new version number
+        latest = await self._article_version_repository.get_latest_version_by_article(article_id)
+        next_version = 1 if not latest else latest["version_number"] + 1
+
+        # create new version
+        version_id = await self._article_version_repository.create_version(
+            article_id, next_version, title.strip(), content, user_id
+        )
+        return version_id
     async def get_article_version(self, article_id: UUID, version_id: UUID, user_id: int) -> dict:
         """Get a specific version of an article.
 
