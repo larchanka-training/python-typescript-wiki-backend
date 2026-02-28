@@ -20,6 +20,13 @@ class ArticleCreateResponse(BaseModel):
 
     id: UUID = Field(..., description="UUID of the created article")
 
+
+class ArticleUpdateRequest(BaseModel):
+    """Payload when updating an existing article."""
+
+    title: str = Field(..., min_length=1, max_length=255, description="New title")
+    content: str = Field(..., description="Updated content in Markdown format")
+
     model_config = {"json_schema_extra": {"example": {"id": "123e4567-e89b-12d3-a456-426614174000"}}}
 
 

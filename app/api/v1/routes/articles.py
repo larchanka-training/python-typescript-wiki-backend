@@ -8,7 +8,12 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Depends, Header, Request, status
 
 from app.api.deps import get_article_service, get_session_service
-from app.api.v1.schemas.articles import ArticleCreateRequest, ArticleCreateResponse, ArticleVersionResponse
+from app.api.v1.schemas.articles import (
+    ArticleCreateRequest,
+    ArticleCreateResponse,
+    ArticleUpdateRequest,
+    ArticleVersionResponse,
+)
 from app.core.errors import AppError, ErrorCode, ErrorResponse
 from app.core.trace import get_trace_id
 from app.services.article_service import ArticleService  # noqa: TC001
@@ -150,6 +155,47 @@ async def create_article(  # noqa: PLR0913
     try:
         article_id = await article_service.create_article(space_id, body.title, body.content, user_id)
         return ArticleCreateResponse(id=article_id)
+    except ValueError as e:
+        if "not found" in str(e):
+            raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
+        raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
+@router.patch(
+    "/articles/{article_id}",
+    response_model=ArticleVersionResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Update an existing article",
+)
+async def update_article(
+    request: Request,
+    article_id: UUID,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    body: Annotated[ArticleUpdateRequest, Body()],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> ArticleVersionResponse:
+    """Updates an existing article and creates a new version.
+
+    Only the space owner or superadmin may update an article.
+    """
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    # validate session
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+    user_perm = session_data.user.permission
+
+    try:
+        version_id = await article_service.update_article(
+            article_id, body.title, body.content, user_id, user_perm
+        )
+        version = await article_service.get_article_version(article_id, version_id, user_id)
+        return ArticleVersionResponse(**version)
     except ValueError as e:
         if "not found" in str(e):
             raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None

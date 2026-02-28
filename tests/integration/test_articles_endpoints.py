@@ -43,6 +43,14 @@ class FakeArticleService:
         self._article_id = article_id
         self._version_id = version_id
 
+    async def update_article(
+        self, article_id: UUID, title: str, content: str, user_id: int, user_perm: str | None
+    ) -> UUID:
+        _ = article_id, title, content, user_id, user_perm
+        # simulate creating a new version id
+        self._version_id = uuid4()
+        return self._version_id
+
     async def create_article(self, space_id: UUID, title: str, content: str, user_id: int) -> UUID:
         _ = space_id, title, content, user_id
         return self._article_id
@@ -76,10 +84,11 @@ class FakeArticleService:
         }
 
     async def get_article_version(self, article_id: UUID, version_id: UUID, user_id: int) -> dict:
-        _ = article_id, version_id, user_id
+        _ = article_id, user_id
         now = datetime.now(timezone.utc)
+        # echo requested version_id so tests can verify
         return {
-            "id": self._version_id,
+            "id": version_id,
             "article_id": ARTICLE_ID,
             "version_number": 1,
             "title": "Test Article",
@@ -192,6 +201,51 @@ class TestArticlesEndpoints(TestCase):
         data = response.json()
         self.assertEqual(data["id"], str(VERSION_ID))
         self.assertEqual(data["title"], "Test Article")
+
+    def test_update_article_success_returns_200(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+        new_version = uuid4()
+        # override behaviour for update and retrieval
+        async def fake_update(article_id, title, content, user_id, user_perm):
+            return new_version
+        article_service.update_article = fake_update
+        async def fake_get(article_id, version_id, user_id):
+            now = datetime.now(timezone.utc)
+            return {
+                "id": version_id,
+                "article_id": ARTICLE_ID,
+                "version_number": 2,
+                "title": "Updated Title",
+                "content": "# Updated",
+                "author_id": 1,
+                "created_at": now,
+            }
+        article_service.get_article_version = fake_get
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.patch(
+                f"/api/v1/articles/{ARTICLE_ID}",
+                json={"title": "Updated Title", "content": "# Updated"},
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["id"], str(new_version))
+
+    def test_update_article_empty_title_returns_400(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.patch(
+                f"/api/v1/articles/{ARTICLE_ID}",
+                json={"title": "", "content": "# Updated"},
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["message"], ErrorCode.VALIDATION_ERROR)
 
     def test_get_article_version_success_returns_200(self):
         session_service = FakeSessionService(self._sample_session_data())

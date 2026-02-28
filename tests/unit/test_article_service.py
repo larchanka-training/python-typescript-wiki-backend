@@ -246,4 +246,64 @@ class TestArticleService(TestCase):
             except ValueError as e:
                 assert str(e) == "Version does not belong to the specified article"
 
+    def test_update_article_success(self):
+        article_id = uuid4()
+        user_id = 1
+        space_id = uuid4()
+        new_version_id = uuid4()
+        title = "Updated Title"
+        content = "# Updated Content"
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        # user is owner of the space
+        self.article_service._space_repository.get_membership_role.return_value = "owner"
+        self.article_service._article_repository.update_article_title.return_value = None
+        self.article_service._article_version_repository.get_latest_version_by_article.return_value = {"version_number": 1}
+        self.article_service._article_version_repository.create_version.return_value = new_version_id
+
+        async def run_test():
+            result = await self.article_service.update_article(
+                article_id, title, content, user_id, None
+            )
+            assert result == new_version_id
+            self.article_service._article_repository.update_article_title.assert_called_once_with(article_id, title)
+            self.article_service._article_version_repository.create_version.assert_called_once_with(
+                article_id, 2, title, content, user_id
+            )
+
+        asyncio.run(run_test())
+
+    def test_update_article_not_allowed(self):
+        article_id = uuid4()
+        user_id = 1
+        space_id = uuid4()
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        # not owner and not admin
+        self.article_service._space_repository.get_membership_role.return_value = "member"
+
+        async def run_test():
+            try:
+                await self.article_service.update_article(article_id, "Title", "Content", user_id, None)
+                assert False, "Expected PermissionError"
+            except PermissionError as e:
+                assert str(e) == "Only space owner or admin can update articles"
+
+        asyncio.run(run_test())
+
+    def test_update_article_empty_title(self):
+        article_id = uuid4()
+        user_id = 1
+        space_id = uuid4()
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        self.article_service._space_repository.get_membership_role.return_value = "owner"
+
+        async def run_test():
+            try:
+                await self.article_service.update_article(article_id, "", "Content", user_id, None)
+                assert False, "Expected ValueError"
+            except ValueError as e:
+                assert str(e) == "Title cannot be empty"
+
         asyncio.run(run_test())
