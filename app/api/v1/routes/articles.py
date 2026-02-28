@@ -324,6 +324,36 @@ async def get_article_version(
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
 
 
+@router.delete(
+    "/articles/{article_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=RESPONSES,
+    summary="Delete an article",
+)
+async def delete_article(
+    request: Request,
+    article_id: UUID,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> None:
+    """Soft-delete an article. Only space owner or superadmin allowed."""
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+    user_perm = session_data.user.permission
+
+    try:
+        await article_service.delete_article(article_id, user_id, user_perm)
+        return
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
 def _extract_bearer_token(authorization: str | None) -> str:
     """Extracts bearer token from header."""
     if not authorization:

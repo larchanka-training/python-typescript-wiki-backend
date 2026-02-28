@@ -70,6 +70,18 @@ class ArticleRepository:
             article_id,
         )
 
+    async def mark_deleted(self, article_id: UUID, deleted_at) -> None:
+        """Soft-delete an article by setting deleted_at."""
+        await self._connection.execute(
+            """
+            UPDATE articles
+            SET deleted_at = $2
+            WHERE id = $1;
+            """,
+            article_id,
+            deleted_at,
+        )
+
 
 class ArticleVersionRepository:
     """Repository for article versions (asyncpg)."""
