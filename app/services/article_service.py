@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from uuid import UUID
+from datetime import datetime, timezone
 
 if TYPE_CHECKING:
     from app.repositories.articles import ArticleRepository, ArticleVersionRepository
@@ -126,6 +127,31 @@ class ArticleService:
             article_id, next_version, title.strip(), content, user_id
         )
         return version_id
+
+    async def delete_article(
+        self, article_id: UUID, user_id: int, user_permission: str | None
+    ) -> None:
+        """Soft-delete an article.
+
+        Only the space owner or superadmin may delete.
+        """
+        article = await self._article_repository.get_article_by_id(article_id)
+        if not article:
+            raise ValueError("Article not found")
+
+        # permission check: owner or admin
+        if user_permission == "admin":
+            is_allowed = True
+        else:
+            role = await self._space_repository.get_membership_role(article["space_id"], user_id)
+            is_allowed = role == "owner"
+
+        if not is_allowed:
+            raise PermissionError("Only space owner or admin can delete articles")
+
+        now = datetime.now(timezone.utc)
+        await self._article_repository.mark_deleted(article_id, now)
+
     async def get_article_version(self, article_id: UUID, version_id: UUID, user_id: int) -> dict:
         """Get a specific version of an article.
 

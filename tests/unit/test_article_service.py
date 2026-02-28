@@ -68,6 +68,54 @@ class TestArticleService(TestCase):
 
         asyncio.run(run_test())
 
+    def test_delete_article_success(self):
+        article_id = uuid4()
+        user_id = 1
+        space_id = uuid4()
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        # owner
+        self.article_service._space_repository.get_membership_role.return_value = "owner"
+        self.article_service._article_repository.mark_deleted.return_value = None
+
+        async def run_test():
+            await self.article_service.delete_article(article_id, user_id, None)
+            self.article_service._article_repository.mark_deleted.assert_called_once()
+
+        asyncio.run(run_test())
+
+    def test_delete_article_not_found(self):
+        article_id = uuid4()
+        user_id = 1
+
+        self.article_service._article_repository.get_article_by_id.return_value = None
+
+        async def run_test():
+            try:
+                await self.article_service.delete_article(article_id, user_id, None)
+                assert False, "Expected ValueError"
+            except ValueError as e:
+                assert str(e) == "Article not found"
+
+        asyncio.run(run_test())
+
+    def test_delete_article_not_allowed(self):
+        article_id = uuid4()
+        user_id = 1
+        space_id = uuid4()
+
+        self.article_service._article_repository.get_article_by_id.return_value = {"space_id": space_id}
+        self.article_service._space_repository.get_membership_role.return_value = "member"
+
+        async def run_test():
+            try:
+                await self.article_service.delete_article(article_id, user_id, None)
+                assert False, "Expected PermissionError"
+            except PermissionError as e:
+                assert str(e) == "Only space owner or admin can delete articles"
+
+        asyncio.run(run_test())
+
     def test_get_article_versions_success(self):
         article_id = uuid4()
         user_id = 1

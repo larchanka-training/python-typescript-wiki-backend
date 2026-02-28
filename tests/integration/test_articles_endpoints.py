@@ -97,6 +97,11 @@ class FakeArticleService:
             "created_at": now,
         }
 
+    async def delete_article(self, article_id: UUID, user_id: int, user_perm: str | None) -> None:
+        _ = article_id, user_id, user_perm
+        # no-op stub for delete
+        return None
+
 
 class TestArticlesEndpoints(TestCase):
     def setUp(self):
@@ -201,6 +206,29 @@ class TestArticlesEndpoints(TestCase):
         data = response.json()
         self.assertEqual(data["id"], str(VERSION_ID))
         self.assertEqual(data["title"], "Test Article")
+
+    def test_delete_article_success_returns_204(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.delete(
+                f"/api/v1/articles/{ARTICLE_ID}",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        # no response body expected
+
+    def test_delete_article_missing_session_returns_401(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.delete(f"/api/v1/articles/{ARTICLE_ID}")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.json()["message"], ErrorCode.SESSION_MISSING)
 
     def test_update_article_success_returns_200(self):
         session_service = FakeSessionService(self._sample_session_data())
