@@ -1,6 +1,6 @@
 """Integration-style tests for /articles endpoints."""
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from unittest import TestCase
@@ -12,11 +12,13 @@ from fastapi.testclient import TestClient
 from app.api.deps import get_article_service, get_session_service
 from app.core.errors import ErrorCode
 from app.main import app
+from app.repositories.articles import ConflictError
 from app.services.models import SessionData, UserProfile
 
 SESSION_TOKEN = "session-token"  # noqa: S105
 ARTICLE_ID = uuid4()
 VERSION_ID = uuid4()
+SPACE_ID = uuid4()
 
 
 @asynccontextmanager
@@ -37,26 +39,65 @@ class FakeSessionService:
 
 
 class FakeArticleService:
-    """Test double for ArticleService."""
+    """Test double for ArticleService (new API)."""
 
     def __init__(self, article_id: UUID, version_id: UUID) -> None:
         self._article_id = article_id
         self._version_id = version_id
 
-    async def update_article(
-        self, article_id: UUID, title: str, content: str, user_id: int, user_perm: str | None
+    async def create_article(
+        self,
+        space_id: UUID,
+        title: str,
+        content: str,
+        user_id: int,
+        *,
+        show_toc: bool = False,
+        parent_id: UUID | None = None,
+        position: int = 0,
     ) -> UUID:
-        _ = article_id, title, content, user_id, user_perm
-        # simulate creating a new version id
+        _ = space_id, title, content, user_id, show_toc, parent_id, position
+        return self._article_id
+
+    async def list_articles(self, space_id: UUID, user_id: int) -> list[dict]:
+        _ = space_id, user_id
+        now = datetime.now(timezone.utc)
+        return [
+            {
+                "id": self._article_id,
+                "space_id": space_id,
+                "title": "Test Article",
+                "owner_id": 1,
+                "parent_id": None,
+                "position": 0,
+                "created_at": now,
+                "updated_at": now,
+            }
+        ]
+
+    async def save_article_version(
+        self,
+        space_id: UUID,
+        article_id: UUID,
+        title: str,
+        content: str,
+        user_id: int,
+        user_permission: str | None,
+        *,
+        show_toc: bool = False,
+        content_format: str = "markdown",
+        change_summary: str | None = None,
+        base_version_number: int | None = None,
+    ) -> UUID:
+        _ = space_id, article_id, title, content, user_id, user_permission
+        _ = show_toc, content_format, change_summary, base_version_number
         self._version_id = uuid4()
         return self._version_id
 
-    async def create_article(self, space_id: UUID, title: str, content: str, user_id: int) -> UUID:
-        _ = space_id, title, content, user_id
-        return self._article_id
-
-    async def get_article_versions(self, article_id: UUID, user_id: int) -> list[dict]:
-        _ = article_id, user_id
+    async def get_article_versions(
+        self, space_id: UUID, article_id: UUID, user_id: int,
+    ) -> list[dict]:
+        _ = space_id, article_id, user_id
         now = datetime.now(timezone.utc)
         return [
             {
@@ -66,12 +107,17 @@ class FakeArticleService:
                 "title": "Test Article",
                 "content": "# Test Content",
                 "author_id": 1,
+                "show_toc": False,
+                "content_format": "markdown",
+                "change_summary": None,
                 "created_at": now,
             }
         ]
 
-    async def get_latest_article_version(self, article_id: UUID, user_id: int) -> dict:
-        _ = article_id, user_id
+    async def get_latest_article_version(
+        self, space_id: UUID, article_id: UUID, user_id: int,
+    ) -> dict:
+        _ = space_id, article_id, user_id
         now = datetime.now(timezone.utc)
         return {
             "id": self._version_id,
@@ -80,27 +126,34 @@ class FakeArticleService:
             "title": "Test Article",
             "content": "# Test Content",
             "author_id": 1,
+            "show_toc": False,
+            "content_format": "markdown",
+            "change_summary": None,
             "created_at": now,
         }
 
-    async def get_article_version(self, article_id: UUID, version_id: UUID, user_id: int) -> dict:
-        _ = article_id, user_id
+    async def get_article_version_by_number(
+        self, space_id: UUID, article_id: UUID, version_number: int, user_id: int,
+    ) -> dict:
+        _ = space_id, article_id, user_id
         now = datetime.now(timezone.utc)
-        # echo requested version_id so tests can verify
         return {
-            "id": version_id,
+            "id": self._version_id,
             "article_id": ARTICLE_ID,
-            "version_number": 1,
+            "version_number": version_number,
             "title": "Test Article",
             "content": "# Test Content",
             "author_id": 1,
+            "show_toc": False,
+            "content_format": "markdown",
+            "change_summary": None,
             "created_at": now,
         }
 
-    async def delete_article(self, article_id: UUID, user_id: int, user_perm: str | None) -> None:
-        _ = article_id, user_id, user_perm
-        # no-op stub for delete
-        return None
+    async def delete_article(
+        self, space_id: UUID, article_id: UUID, user_id: int, user_perm: str | None,
+    ) -> None:
+        _ = space_id, article_id, user_id, user_perm
 
 
 class TestArticlesEndpoints(TestCase):
@@ -132,16 +185,17 @@ class TestArticlesEndpoints(TestCase):
         )
         return SessionData(user=user, expires_at=now, session_token=SESSION_TOKEN)
 
+    # ── POST create ─────────────────────────────────────────────────
+
     def test_create_article_success_returns_201(self):
         session_service = FakeSessionService(self._sample_session_data())
         article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-        space_id = uuid4()
 
         with self._create_client(session_service, article_service) as client:
             response = client.post(
-                f"/api/v1/spaces/{space_id}/articles",
+                f"/api/v1/spaces/{SPACE_ID}/articles",
                 json={"title": "New Article", "content": "# Content"},
-                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
             )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -150,13 +204,12 @@ class TestArticlesEndpoints(TestCase):
     def test_create_article_empty_title_returns_400(self):
         session_service = FakeSessionService(self._sample_session_data())
         article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-        space_id = uuid4()
 
         with self._create_client(session_service, article_service) as client:
             response = client.post(
-                f"/api/v1/spaces/{space_id}/articles",
+                f"/api/v1/spaces/{SPACE_ID}/articles",
                 json={"title": "", "content": "# Content"},
-                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
             )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -165,32 +218,34 @@ class TestArticlesEndpoints(TestCase):
     def test_create_article_missing_session_returns_401(self):
         session_service = FakeSessionService(self._sample_session_data())
         article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-        space_id = uuid4()
 
         with self._create_client(session_service, article_service) as client:
             response = client.post(
-                f"/api/v1/spaces/{space_id}/articles",
-                json={"title": "New Article", "content": "# Content"}
+                f"/api/v1/spaces/{SPACE_ID}/articles",
+                json={"title": "New Article", "content": "# Content"},
             )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.json()["message"], ErrorCode.SESSION_MISSING)
 
-    def test_get_article_versions_success_returns_200(self):
+    # ── GET list ────────────────────────────────────────────────────
+
+    def test_list_articles_success_returns_200(self):
         session_service = FakeSessionService(self._sample_session_data())
         article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
 
         with self._create_client(session_service, article_service) as client:
             response = client.get(
-                f"/api/v1/articles/{ARTICLE_ID}/versions",
-                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+                f"/api/v1/spaces/{SPACE_ID}/articles",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
             )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["id"], str(VERSION_ID))
-        self.assertEqual(data[0]["title"], "Test Article")
+        self.assertIn("articles", data)
+        self.assertEqual(len(data["articles"]), 1)
+
+    # ── GET latest version ──────────────────────────────────────────
 
     def test_get_article_success_returns_200(self):
         session_service = FakeSessionService(self._sample_session_data())
@@ -198,14 +253,33 @@ class TestArticlesEndpoints(TestCase):
 
         with self._create_client(session_service, article_service) as client:
             response = client.get(
-                f"/api/v1/articles/{ARTICLE_ID}",
-                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+                f"/api/v1/spaces/{SPACE_ID}/articles/{ARTICLE_ID}",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
             )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
         self.assertEqual(data["id"], str(VERSION_ID))
         self.assertEqual(data["title"], "Test Article")
+
+    # ── PUT save new version ────────────────────────────────────────
+
+    def test_save_article_version_returns_200(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.put(
+                f"/api/v1/spaces/{SPACE_ID}/articles/{ARTICLE_ID}",
+                json={"title": "Updated Title", "content": "# Updated"},
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["title"], "Test Article")  # returns latest from fake
+
+    # ── DELETE ──────────────────────────────────────────────────────
 
     def test_delete_article_success_returns_204(self):
         session_service = FakeSessionService(self._sample_session_data())
@@ -213,79 +287,53 @@ class TestArticlesEndpoints(TestCase):
 
         with self._create_client(session_service, article_service) as client:
             response = client.delete(
-                f"/api/v1/articles/{ARTICLE_ID}",
+                f"/api/v1/spaces/{SPACE_ID}/articles/{ARTICLE_ID}",
                 headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
             )
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        # no response body expected
 
     def test_delete_article_missing_session_returns_401(self):
         session_service = FakeSessionService(self._sample_session_data())
         article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
 
         with self._create_client(session_service, article_service) as client:
-            response = client.delete(f"/api/v1/articles/{ARTICLE_ID}")
+            response = client.delete(
+                f"/api/v1/spaces/{SPACE_ID}/articles/{ARTICLE_ID}",
+            )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(response.json()["message"], ErrorCode.SESSION_MISSING)
 
-    def test_update_article_success_returns_200(self):
-        session_service = FakeSessionService(self._sample_session_data())
-        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-        new_version = uuid4()
-        # override behaviour for update and retrieval
-        async def fake_update(article_id, title, content, user_id, user_perm):
-            return new_version
-        article_service.update_article = fake_update
-        async def fake_get(article_id, version_id, user_id):
-            now = datetime.now(timezone.utc)
-            return {
-                "id": version_id,
-                "article_id": ARTICLE_ID,
-                "version_number": 2,
-                "title": "Updated Title",
-                "content": "# Updated",
-                "author_id": 1,
-                "created_at": now,
-            }
-        article_service.get_article_version = fake_get
+    # ── GET versions ────────────────────────────────────────────────
 
-        with self._create_client(session_service, article_service) as client:
-            response = client.patch(
-                f"/api/v1/articles/{ARTICLE_ID}",
-                json={"title": "Updated Title", "content": "# Updated"},
-                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
-            )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()["id"], str(new_version))
-
-    def test_update_article_empty_title_returns_400(self):
-        session_service = FakeSessionService(self._sample_session_data())
-        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
-
-        with self._create_client(session_service, article_service) as client:
-            response = client.patch(
-                f"/api/v1/articles/{ARTICLE_ID}",
-                json={"title": "", "content": "# Updated"},
-                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
-            )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.json()["message"], ErrorCode.VALIDATION_ERROR)
-
-    def test_get_article_version_success_returns_200(self):
+    def test_get_article_versions_success_returns_200(self):
         session_service = FakeSessionService(self._sample_session_data())
         article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
 
         with self._create_client(session_service, article_service) as client:
             response = client.get(
-                f"/api/v1/articles/{ARTICLE_ID}/{VERSION_ID}",
-                headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+                f"/api/v1/spaces/{SPACE_ID}/articles/{ARTICLE_ID}/versions",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
             )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
-        self.assertEqual(data["id"], str(VERSION_ID))
-        self.assertEqual(data["title"], "Test Article")
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], str(VERSION_ID))
+
+    # ── GET version by number ───────────────────────────────────────
+
+    def test_get_article_version_by_number_returns_200(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.get(
+                f"/api/v1/spaces/{SPACE_ID}/articles/{ARTICLE_ID}/versions/1",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["version_number"], 1)

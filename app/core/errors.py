@@ -29,6 +29,9 @@ class ErrorCode(str, Enum):
     OAUTH_STATE_INVALID = "OAUTH_STATE_INVALID"  # Некорректный state (401).
     SESSION_MISSING = "SESSION_MISSING"  # Сессия не передана (401).
     SESSION_EXPIRED = "SESSION_EXPIRED"  # Сессия истекла/отозвана (401).
+    NOT_FOUND = "NOT_FOUND"  # Ресурс не найден (404).
+    FORBIDDEN = "FORBIDDEN"  # Нет доступа (403).
+    ARTICLE_VERSION_CONFLICT = "ARTICLE_VERSION_CONFLICT"  # Конфликт версий (409).
     RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"  # Лимит запросов (429).
     INTERNAL_ERROR = "INTERNAL_ERROR"  # Внутренняя ошибка (500).
 
@@ -83,6 +86,9 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     code = {
         400: ErrorCode.VALIDATION_ERROR,
         401: ErrorCode.OAUTH_CODE_INVALID,
+        403: ErrorCode.FORBIDDEN,
+        404: ErrorCode.NOT_FOUND,
+        409: ErrorCode.ARTICLE_VERSION_CONFLICT,
         422: ErrorCode.VALIDATION_ERROR,
         429: ErrorCode.RATE_LIMIT_EXCEEDED,
     }.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
