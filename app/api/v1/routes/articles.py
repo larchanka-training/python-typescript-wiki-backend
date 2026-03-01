@@ -1,4 +1,8 @@
-"""API routes for articles."""
+"""API routes for articles.
+
+All endpoints are nested under /spaces/{space_id}/articles to reflect the
+resource hierarchy and simplify authorization.
+"""
 
 from __future__ import annotations
 
@@ -11,11 +15,14 @@ from app.api.deps import get_article_service, get_session_service
 from app.api.v1.schemas.articles import (
     ArticleCreateRequest,
     ArticleCreateResponse,
-    ArticleUpdateRequest,
+    ArticleListItem,
+    ArticleListResponse,
+    ArticleSaveRequest,
     ArticleVersionResponse,
 )
 from app.core.errors import AppError, ErrorCode, ErrorResponse
 from app.core.trace import get_trace_id
+from app.repositories.articles import ConflictError
 from app.services.article_service import ArticleService  # noqa: TC001
 from app.services.session_service import SessionService  # noqa: TC001
 
@@ -102,6 +109,24 @@ RESPONSES = {
             }
         },
     },
+    status.HTTP_409_CONFLICT: {
+        "model": ErrorResponse,
+        "description": "Version conflict (optimistic locking)",
+        "content": {
+            "application/json": {
+                "examples": {
+                    "version_conflict": {
+                        "summary": "Version conflict",
+                        "value": {
+                            "status": "error",
+                            "message": "ARTICLE_VERSION_CONFLICT",
+                            "timestamp": "2025-01-01T12:00:00Z",
+                        },
+                    }
+                }
+            }
+        },
+    },
     status.HTTP_500_INTERNAL_SERVER_ERROR: {
         "model": ErrorResponse,
         "description": "Internal server error",
@@ -123,6 +148,9 @@ RESPONSES = {
 }
 
 
+# ── POST /spaces/{space_id}/articles ────────────────────────────────
+
+
 @router.post(
     "/spaces/{space_id}/articles",
     response_model=ArticleCreateResponse,
@@ -130,7 +158,7 @@ RESPONSES = {
     responses=RESPONSES,
     summary="Create a new article",
 )
-async def create_article(  # noqa: PLR0913
+async def create_article(
     request: Request,
     space_id: UUID,
     article_service: Annotated[ArticleService, Depends(get_article_service)],
@@ -142,109 +170,72 @@ async def create_article(  # noqa: PLR0913
 
     Only the space owner can create articles.
     Requires session authentication via Bearer token.
-    Possible statuses: 201 Created; 400 VALIDATION_ERROR; 401 SESSION_MISSING/SESSION_EXPIRED;
-    403 FORBIDDEN; 404 NOT_FOUND; 500 INTERNAL_ERROR.
     """
     trace_id = get_trace_id(request)
     session_token = _extract_bearer_token(authorization)
 
-    # Check session and get user_id
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id
 
     try:
-        article_id = await article_service.create_article(space_id, body.title, body.content, user_id)
-        return ArticleCreateResponse(id=article_id)
-    except ValueError as e:
-        if "not found" in str(e):
-            raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
-        raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
-    except PermissionError:
-        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
-
-
-@router.patch(
-    "/articles/{article_id}",
-    response_model=ArticleVersionResponse,
-    status_code=status.HTTP_200_OK,
-    responses=RESPONSES,
-    summary="Update an existing article",
-)
-async def update_article(
-    request: Request,
-    article_id: UUID,
-    article_service: Annotated[ArticleService, Depends(get_article_service)],
-    session_service: Annotated[SessionService, Depends(get_session_service)],
-    body: Annotated[ArticleUpdateRequest, Body()],
-    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
-) -> ArticleVersionResponse:
-    """Updates an existing article and creates a new version.
-
-    Only the space owner or superadmin may update an article.
-    """
-    trace_id = get_trace_id(request)
-    session_token = _extract_bearer_token(authorization)
-
-    # validate session
-    session_data = await session_service.get_session(session_token, trace_id)
-    user_id = session_data.user.id
-    user_perm = session_data.user.permission
-
-    try:
-        version_id = await article_service.update_article(
-            article_id, body.title, body.content, user_id, user_perm
+        article_id = await article_service.create_article(
+            space_id,
+            body.title,
+            body.content,
+            user_id,
+            show_toc=body.show_toc,
+            parent_id=body.parent_id,
+            position=body.position,
         )
-        version = await article_service.get_article_version(article_id, version_id, user_id)
-        return ArticleVersionResponse(**version)
-    except ValueError as e:
-        if "not found" in str(e):
-            raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
-        raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
+        return ArticleCreateResponse(id=article_id)
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
 
 
+# ── GET /spaces/{space_id}/articles ─────────────────────────────────
+
+
 @router.get(
-    "/articles/{article_id}/versions",
-    response_model=list[ArticleVersionResponse],
+    "/spaces/{space_id}/articles",
+    response_model=ArticleListResponse,
     status_code=status.HTTP_200_OK,
     responses=RESPONSES,
-    summary="Get all versions of an article",
+    summary="List articles in a space",
 )
-async def get_article_versions(
+async def list_articles(
     request: Request,
-    article_id: UUID,
+    space_id: UUID,
     article_service: Annotated[ArticleService, Depends(get_article_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
     authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
-) -> list[ArticleVersionResponse]:
-    """Gets all versions of the specified article.
+) -> ArticleListResponse:
+    """Lists all articles in the specified space.
 
-    User must have access to the space containing the article.
-    Requires session authentication via Bearer token.
-    Possible statuses: 200 OK; 401 SESSION_MISSING/SESSION_EXPIRED;
-    403 FORBIDDEN; 404 NOT_FOUND; 500 INTERNAL_ERROR.
+    Returns articles with parent_id for building a tree in the sidebar.
+    User must have access to the space.
     """
     trace_id = get_trace_id(request)
     session_token = _extract_bearer_token(authorization)
 
-    # Check session and get user_id
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id
 
     try:
-        versions = await article_service.get_article_versions(article_id, user_id)
-        return [ArticleVersionResponse(**version) for version in versions]
-    except ValueError as e:
-        if "not found" in str(e):
-            raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
-        raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
+        articles = await article_service.list_articles(space_id, user_id)
+        return ArticleListResponse(
+            articles=[ArticleListItem(**a) for a in articles],
+        )
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
 
 
+# ── GET /spaces/{space_id}/articles/{article_id} ────────────────────
+
+
 @router.get(
-    "/articles/{article_id}",
+    "/spaces/{space_id}/articles/{article_id}",
     response_model=ArticleVersionResponse,
     status_code=status.HTTP_200_OK,
     responses=RESPONSES,
@@ -252,6 +243,7 @@ async def get_article_versions(
 )
 async def get_article(
     request: Request,
+    space_id: UUID,
     article_id: UUID,
     article_service: Annotated[ArticleService, Depends(get_article_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
@@ -260,78 +252,90 @@ async def get_article(
     """Gets the latest version of the specified article.
 
     User must have access to the space containing the article.
-    Requires session authentication via Bearer token.
-    Possible statuses: 200 OK; 401 SESSION_MISSING/SESSION_EXPIRED;
-    403 FORBIDDEN; 404 NOT_FOUND; 500 INTERNAL_ERROR.
     """
     trace_id = get_trace_id(request)
     session_token = _extract_bearer_token(authorization)
 
-    # Check session and get user_id
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id
 
     try:
-        version = await article_service.get_latest_article_version(article_id, user_id)
+        version = await article_service.get_latest_article_version(space_id, article_id, user_id)
         return ArticleVersionResponse(**version)
-    except ValueError as e:
-        if "not found" in str(e):
-            raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
-        raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
 
 
-@router.get(
-    "/articles/{article_id}/{version_id}",
+# ── PUT /spaces/{space_id}/articles/{article_id} ────────────────────
+
+
+@router.put(
+    "/spaces/{space_id}/articles/{article_id}",
     response_model=ArticleVersionResponse,
     status_code=status.HTTP_200_OK,
     responses=RESPONSES,
-    summary="Get a specific version of an article",
+    summary="Save a new version of an article",
 )
-async def get_article_version(
+async def save_article_version(
     request: Request,
+    space_id: UUID,
     article_id: UUID,
-    version_id: UUID,
     article_service: Annotated[ArticleService, Depends(get_article_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
+    body: Annotated[ArticleSaveRequest, Body()],
     authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
 ) -> ArticleVersionResponse:
-    """Gets the specified version of an article.
+    """Saves a new version of an existing article.
 
-    User must have access to the space containing the article.
-    Requires session authentication via Bearer token.
-    Possible statuses: 200 OK; 401 SESSION_MISSING/SESSION_EXPIRED;
-    403 FORBIDDEN; 404 NOT_FOUND; 500 INTERNAL_ERROR.
+    Only the space owner or superadmin may update.
+    Supports optimistic locking via ``base_version_number``.
+    Returns 409 ARTICLE_VERSION_CONFLICT on conflict.
     """
     trace_id = get_trace_id(request)
     session_token = _extract_bearer_token(authorization)
 
-    # Check session and get user_id
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id
+    user_perm = session_data.user.permission
 
     try:
-        version = await article_service.get_article_version(article_id, version_id, user_id)
+        version_id = await article_service.save_article_version(
+            space_id,
+            article_id,
+            body.title,
+            body.content,
+            user_id,
+            user_perm,
+            show_toc=body.show_toc,
+            content_format=body.content_format,
+            change_summary=body.change_summary,
+            base_version_number=body.base_version_number,
+        )
+        # Return the newly created version
+        version = await article_service.get_latest_article_version(space_id, article_id, user_id)
         return ArticleVersionResponse(**version)
-    except ValueError as e:
-        if "not found" in str(e):
-            raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
-        if "does not belong" in str(e):
-            raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
-        raise AppError(status.HTTP_400_BAD_REQUEST, ErrorCode.VALIDATION_ERROR) from None
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+    except ConflictError:
+        raise AppError(status.HTTP_409_CONFLICT, ErrorCode.ARTICLE_VERSION_CONFLICT) from None
+
+
+# ── DELETE /spaces/{space_id}/articles/{article_id} ─────────────────
 
 
 @router.delete(
-    "/articles/{article_id}",
+    "/spaces/{space_id}/articles/{article_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses=RESPONSES,
-    summary="Delete an article",
+    summary="Soft-delete an article",
 )
 async def delete_article(
     request: Request,
+    space_id: UUID,
     article_id: UUID,
     article_service: Annotated[ArticleService, Depends(get_article_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
@@ -346,12 +350,91 @@ async def delete_article(
     user_perm = session_data.user.permission
 
     try:
-        await article_service.delete_article(article_id, user_id, user_perm)
-        return
+        await article_service.delete_article(space_id, article_id, user_id, user_perm)
     except ValueError:
         raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
+# ── GET /spaces/{space_id}/articles/{article_id}/versions ───────────
+
+
+@router.get(
+    "/spaces/{space_id}/articles/{article_id}/versions",
+    response_model=list[ArticleVersionResponse],
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Get all versions of an article",
+)
+async def get_article_versions(
+    request: Request,
+    space_id: UUID,
+    article_id: UUID,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> list[ArticleVersionResponse]:
+    """Gets all versions of the specified article.
+
+    User must have access to the space containing the article.
+    """
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+
+    try:
+        versions = await article_service.get_article_versions(space_id, article_id, user_id)
+        return [ArticleVersionResponse(**v) for v in versions]
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
+# ── GET /spaces/{space_id}/articles/{article_id}/versions/{version_number}
+
+
+@router.get(
+    "/spaces/{space_id}/articles/{article_id}/versions/{version_number}",
+    response_model=ArticleVersionResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Get a specific version of an article by version number",
+)
+async def get_article_version(
+    request: Request,
+    space_id: UUID,
+    article_id: UUID,
+    version_number: int,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> ArticleVersionResponse:
+    """Gets the specified version of an article by its ordinal number.
+
+    User must have access to the space containing the article.
+    """
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+
+    try:
+        version = await article_service.get_article_version_by_number(
+            space_id, article_id, version_number, user_id,
+        )
+        return ArticleVersionResponse(**version)
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
+# ── helpers ─────────────────────────────────────────────────────────
 
 
 def _extract_bearer_token(authorization: str | None) -> str:

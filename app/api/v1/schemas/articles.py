@@ -13,6 +13,9 @@ class ArticleCreateRequest(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=255, description="Title of the article")
     content: str = Field(..., description="Content of the article in Markdown format")
+    show_toc: bool = Field(False, description="Whether to show table of contents")
+    parent_id: UUID | None = Field(None, description="Parent article UUID for tree hierarchy")
+    position: int = Field(0, description="Sort position within siblings")
 
 
 class ArticleCreateResponse(BaseModel):
@@ -21,13 +24,19 @@ class ArticleCreateResponse(BaseModel):
     id: UUID = Field(..., description="UUID of the created article")
 
 
-class ArticleUpdateRequest(BaseModel):
-    """Payload when updating an existing article."""
+class ArticleSaveRequest(BaseModel):
+    """Payload for saving a new version of an article (PUT)."""
 
     title: str = Field(..., min_length=1, max_length=255, description="New title")
     content: str = Field(..., description="Updated content in Markdown format")
-
-    model_config = {"json_schema_extra": {"example": {"id": "123e4567-e89b-12d3-a456-426614174000"}}}
+    show_toc: bool = Field(False, description="Whether to show table of contents")
+    content_format: str = Field("markdown", description="Content format (markdown, html, etc.)")
+    change_summary: str | None = Field(None, max_length=500, description="Short description of changes")
+    base_version_number: int | None = Field(
+        None,
+        description="Expected current version number for optimistic locking. "
+        "If provided and does not match, returns 409.",
+    )
 
 
 class ArticleVersionResponse(BaseModel):
@@ -38,7 +47,10 @@ class ArticleVersionResponse(BaseModel):
     version_number: int = Field(..., description="Version number")
     title: str = Field(..., description="Title of the article at this version")
     content: str = Field(..., description="Content of the article in Markdown format")
-    author_id: int = Field(..., description="ID of the author")
+    author_id: int | None = Field(None, description="ID of the author (null if user was deleted)")
+    show_toc: bool = Field(False, description="Whether to show table of contents")
+    content_format: str = Field("markdown", description="Content format")
+    change_summary: str | None = Field(None, description="Short description of changes")
     created_at: datetime = Field(..., description="Timestamp when the version was created")
 
     model_config = {
@@ -50,7 +62,29 @@ class ArticleVersionResponse(BaseModel):
                 "title": "My Article",
                 "content": "# My Article\n\nThis is the content.",
                 "author_id": 1,
+                "show_toc": False,
+                "content_format": "markdown",
+                "change_summary": None,
                 "created_at": "2026-01-01T12:00:00Z",
             }
         }
     }
+
+
+class ArticleListItem(BaseModel):
+    """Single article in a list response."""
+
+    id: UUID = Field(..., description="UUID of the article")
+    space_id: UUID = Field(..., description="UUID of the space")
+    title: str = Field(..., description="Current article title")
+    owner_id: int | None = Field(None, description="ID of the article owner")
+    parent_id: UUID | None = Field(None, description="Parent article UUID for tree hierarchy")
+    position: int = Field(0, description="Sort position within siblings")
+    created_at: datetime = Field(..., description="Timestamp when the article was created")
+    updated_at: datetime = Field(..., description="Timestamp of the last update")
+
+
+class ArticleListResponse(BaseModel):
+    """Response for listing articles in a space."""
+
+    articles: list[ArticleListItem] = Field(..., description="List of articles")
