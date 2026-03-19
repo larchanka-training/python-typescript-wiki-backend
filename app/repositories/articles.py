@@ -157,10 +157,12 @@ class ArticleRepository:
         """Return article row by id or None if not found (excludes soft-deleted)."""
         row = await self._connection.fetchrow(
             """
-            SELECT id, space_id, title, owner_id, parent_id, position,
-                   version_id, created_at, updated_at, deleted_at
-            FROM articles
-            WHERE id = $1 AND deleted_at IS NULL;
+            SELECT a.id, a.space_id, a.title, a.owner_id, a.parent_id, a.position,
+                   a.version_id, a.created_at, a.updated_at, a.deleted_at,
+                   u.username as owner_username, u.telegram_id as owner_telegram_id
+            FROM articles a
+            LEFT JOIN users u ON a.owner_id = u.id
+            WHERE a.id = $1 AND a.deleted_at IS NULL;
             """,
             article_id,
         )
@@ -170,11 +172,13 @@ class ArticleRepository:
         """Return list of articles in the space (for tree building)."""
         rows = await self._connection.fetch(
             """
-            SELECT id, space_id, title, owner_id, parent_id, position,
-                   created_at, updated_at
-            FROM articles
-            WHERE space_id = $1 AND deleted_at IS NULL
-            ORDER BY position, created_at;
+            SELECT a.id, a.space_id, a.title, a.owner_id, a.parent_id, a.position,
+                   a.created_at, a.updated_at,
+                   u.username as owner_username, u.telegram_id as owner_telegram_id
+            FROM articles a
+            LEFT JOIN users u ON a.owner_id = u.id
+            WHERE a.space_id = $1 AND a.deleted_at IS NULL
+            ORDER BY a.position, a.created_at;
             """,
             space_id,
         )
@@ -212,8 +216,9 @@ class ArticleVersionRepository:
         self._connection = connection
 
     _SELECT_COLS = (
-        "id, article_id, version_number, title, content, author_id, "
-        "show_toc, content_format, change_summary, created_at"
+        "av.id, av.article_id, av.version_number, av.title, av.content, av.author_id, "
+        "av.show_toc, av.content_format, av.change_summary, av.created_at, "
+        "u.username as author_username, u.telegram_id as author_telegram_id"
     )
 
     async def get_versions_by_article(self, article_id: UUID) -> list[dict]:
@@ -221,9 +226,10 @@ class ArticleVersionRepository:
         rows = await self._connection.fetch(
             f"""
             SELECT {self._SELECT_COLS}
-            FROM article_versions
-            WHERE article_id = $1
-            ORDER BY version_number DESC;
+            FROM article_versions av
+            LEFT JOIN users u ON av.author_id = u.id
+            WHERE av.article_id = $1
+            ORDER BY av.version_number DESC;
             """,
             article_id,
         )
@@ -234,8 +240,9 @@ class ArticleVersionRepository:
         row = await self._connection.fetchrow(
             f"""
             SELECT {self._SELECT_COLS}
-            FROM article_versions
-            WHERE id = $1;
+            FROM article_versions av
+            LEFT JOIN users u ON av.author_id = u.id
+            WHERE av.id = $1;
             """,
             version_id,
         )
@@ -246,8 +253,9 @@ class ArticleVersionRepository:
         row = await self._connection.fetchrow(
             f"""
             SELECT {self._SELECT_COLS}
-            FROM article_versions
-            WHERE article_id = $1 AND version_number = $2;
+            FROM article_versions av
+            LEFT JOIN users u ON av.author_id = u.id
+            WHERE av.article_id = $1 AND av.version_number = $2;
             """,
             article_id,
             version_number,
@@ -259,9 +267,10 @@ class ArticleVersionRepository:
         row = await self._connection.fetchrow(
             f"""
             SELECT {self._SELECT_COLS}
-            FROM article_versions
-            WHERE article_id = $1
-            ORDER BY version_number DESC
+            FROM article_versions av
+            LEFT JOIN users u ON av.author_id = u.id
+            WHERE av.article_id = $1
+            ORDER BY av.version_number DESC
             LIMIT 1;
             """,
             article_id,

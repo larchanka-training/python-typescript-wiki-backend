@@ -48,6 +48,8 @@ class ArticleVersionResponse(BaseModel):
     title: str = Field(..., description="Title of the article at this version")
     content: str = Field(..., description="Content of the article in Markdown format")
     author_id: int | None = Field(None, description="ID of the author (null if user was deleted)")
+    author_username: str | None = Field(None, description="Username of the author")
+    author_telegram_id: int | None = Field(None, description="Telegram ID of the author")
     show_toc: bool = Field(False, description="Whether to show table of contents")
     content_format: str = Field("markdown", description="Content format")
     change_summary: str | None = Field(None, description="Short description of changes")
@@ -62,6 +64,8 @@ class ArticleVersionResponse(BaseModel):
                 "title": "My Article",
                 "content": "# My Article\n\nThis is the content.",
                 "author_id": 1,
+                "author_username": "jdoe",
+                "author_telegram_id": 12345678,
                 "show_toc": False,
                 "content_format": "markdown",
                 "change_summary": None,
@@ -78,6 +82,8 @@ class ArticleListItem(BaseModel):
     space_id: UUID = Field(..., description="UUID of the space")
     title: str = Field(..., description="Current article title")
     owner_id: int | None = Field(None, description="ID of the article owner")
+    owner_username: str | None = Field(None, description="Username of the article owner")
+    owner_telegram_id: int | None = Field(None, description="Telegram ID of the article owner")
     parent_id: UUID | None = Field(None, description="Parent article UUID for tree hierarchy")
     position: int = Field(0, description="Sort position within siblings")
     created_at: datetime = Field(..., description="Timestamp when the article was created")
