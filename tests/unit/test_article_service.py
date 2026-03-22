@@ -309,6 +309,45 @@ class TestArticleService(TestCase):
 
         asyncio.run(run_test())
 
+    def test_list_articles_with_filters(self):
+        space_id = uuid4()
+        user_id = 1
+        parent_id = uuid4()
+        articles = [{"id": uuid4(), "title": "Child Art"}]
+
+        self.mock_space_repo.get_membership_role.return_value = "member"
+        self.mock_article_repo.get_articles_by_space.return_value = articles
+
+        async def run_test():
+            result = await self.article_service.list_articles(
+                space_id, user_id, None, parent_id=parent_id, filter_by_parent=True
+            )
+            assert result == articles
+            self.mock_article_repo.get_articles_by_space.assert_called_once_with(
+                space_id, parent_id, True
+            )
+
+        asyncio.run(run_test())
+
+    def test_get_article_path_success(self):
+        space_id = uuid4()
+        article_id = uuid4()
+        user_id = 1
+        path = [{"id": article_id, "title": "Art", "parent_id": None}]
+
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
+        self.mock_space_repo.get_membership_role.return_value = "member"
+        self.mock_article_repo.get_article_ancestors.return_value = path
+
+        async def run_test():
+            result = await self.article_service.get_article_path(
+                space_id, article_id, user_id, None
+            )
+            assert result == path
+            self.mock_article_repo.get_article_ancestors.assert_called_once_with(article_id)
+
+        asyncio.run(run_test())
+
     def test_save_article_version_success(self):
         article_id = uuid4()
         space_id = uuid4()
