@@ -263,7 +263,7 @@ class ArticleRepository:
                    u.username as owner_username
             FROM articles a
             JOIN spaces s ON a.space_id = s.id
-            JOIN space_members sm ON s.id = sm.space_id
+            JOIN space_memberships sm ON s.id = sm.space_id
             LEFT JOIN article_versions av ON a.id = av.article_id
             LEFT JOIN users u ON a.owner_id = u.id
             WHERE sm.user_id = $1
@@ -305,7 +305,7 @@ class ArticleRepository:
             FROM articles a
             JOIN article_versions v ON a.version_id = v.id
             JOIN spaces s ON a.space_id = s.id
-            JOIN space_members sm ON s.id = sm.space_id
+            JOIN space_memberships sm ON s.id = sm.space_id
             WHERE sm.user_id = $1
               AND (a.title ILIKE $2 OR v.content ILIKE $2)
             ORDER BY v.updated_at DESC
