@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
-from uuid import UUID
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     import asyncpg
 
 
@@ -99,3 +101,38 @@ class SpaceRepository:
             """,
             space_id,
         )
+
+    async def get_spaces(self, user_id: int) -> list[dict]:
+        """Get all spaces for a user.
+
+        Args:
+            user_id: The ID of the user.
+
+        Returns:
+            List of spaces the user is a member of.
+        """
+        rows = await self._connection.fetch(
+            """
+            SELECT s.id, s.name, sm.role, s.deleted_at
+            FROM spaces s
+            JOIN space_memberships sm ON s.id = sm.space_id
+            WHERE sm.user_id = $1
+            ORDER BY s.id DESC;
+            """,
+            user_id,
+        )
+        result: list[dict] = []
+        for row in rows:
+            item = dict(row)
+            deleted_at = item.get("deleted_at")
+            if isinstance(deleted_at, str):
+                try:
+                    item["deleted_at"] = datetime.fromisoformat(deleted_at.replace("Z", "+00:00"))
+                except ValueError:
+                    item["deleted_at"] = None
+            elif isinstance(deleted_at, datetime):
+                item["deleted_at"] = deleted_at
+
+            result.append(item)
+
+        return result

@@ -11,15 +11,21 @@ from typing import Annotated
 import asyncpg
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, Request, Response
-from app.core.config import get_settings
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException
 
-from app.api.v1.routes import auth as auth_routes, session as session_routes, spaces as spaces_routes, users as users_routes
+from app.api.v1.routes import (
+    articles as articles_routes,
+    auth as auth_routes,
+    session as session_routes,
+    spaces as spaces_routes,
+    users as users_routes,
+)
+from app.core.config import get_settings
 from app.core.errors import (
     AppError,
     app_error_handler,
@@ -104,6 +110,7 @@ async def health_db(
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth_routes.router)
+api_router.include_router(articles_routes.router)
 api_router.include_router(session_routes.router)
 api_router.include_router(spaces_routes.router)
 api_router.include_router(users_routes.router)

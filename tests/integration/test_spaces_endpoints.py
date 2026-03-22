@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, status
@@ -45,6 +45,25 @@ class FakeSpaceService:
         _ = name
         _ = user_id
         return self._space_id
+
+    async def get_spaces(self, user_id: int) -> list[dict]:
+        _ = user_id
+        now = datetime.now(timezone.utc)
+
+        owner_id = uuid4()
+        recent_deleted_id = uuid4()
+        recent_deleted_at = (now - timedelta(days=1)).isoformat()
+
+        return [
+            {"id": owner_id, "name": "Owner Space", "role": "owner", "deleted_at": None, "is_deleted": False},
+            {
+                "id": recent_deleted_id,
+                "name": "Recently Deleted",
+                "role": "member",
+                "deleted_at": recent_deleted_at,
+                "is_deleted": True,
+            },
+        ]
 
 
 @pytest.fixture
@@ -97,7 +116,9 @@ def test_create_space_missing_name_returns_400(client_factory: Callable[[object,
     space_service = FakeSpaceService(SPACE_ID)
 
     with client_factory(session_service, space_service) as client:
-        response = client.post("/api/v1/spaces", json={"name": "   "}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
+        response = client.post(
+            "/api/v1/spaces", json={"name": "   "}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+        )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["message"] == ErrorCode.VALIDATION_ERROR

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003
 from uuid import UUID  # noqa: TC003
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -92,3 +92,62 @@ class SpaceMembership(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     space_id: Mapped[UUID] = mapped_column(ForeignKey("spaces.id"), primary_key=True)
     role: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class Article(Base):
+    """Article model."""
+
+    __tablename__ = "articles"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    space_id: Mapped[UUID] = mapped_column(
+        ForeignKey("spaces.id", ondelete="CASCADE"), index=True,
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    owner_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True,
+    )
+    parent_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("articles.id", ondelete="SET NULL"),
+    )
+    position: Mapped[int] = mapped_column(Integer, server_default=text("0"), nullable=False)
+    version_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("article_versions.id", ondelete="SET NULL"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("now()"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("now()"),
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ArticleVersion(Base):
+    """Article version model."""
+
+    __tablename__ = "article_versions"
+
+    __table_args__ = (
+        UniqueConstraint("article_id", "version_number", name="uq_article_versions_article_id_version_number"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    article_id: Mapped[UUID] = mapped_column(
+        ForeignKey("articles.id", ondelete="CASCADE"), index=True,
+    )
+    version_number: Mapped[int] = mapped_column(nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    author_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True,
+    )
+    show_toc: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), nullable=False)
+    content_format: Mapped[str] = mapped_column(String(32), server_default="markdown", nullable=False)
+    change_summary: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("now()"),
+    )

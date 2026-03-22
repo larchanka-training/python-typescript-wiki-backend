@@ -10,9 +10,11 @@ from fastapi import Depends
 
 from app.core.config import get_settings
 from app.db import get_connection
+from app.repositories.articles import ArticleRepository, ArticleVersionRepository
 from app.repositories.sessions import SessionRepository
 from app.repositories.spaces import SpaceRepository
 from app.repositories.users import UserRepository
+from app.services.article_service import ArticleService
 from app.services.auth_service import AuthService
 from app.services.session_service import SessionService
 from app.services.space_service import SpaceService
@@ -81,6 +83,29 @@ def get_space_service(
 ) -> SpaceService:
     """Создаёт SpaceService."""
     return SpaceService(space_repository)
+
+
+def get_article_repository(
+    connection: Annotated[asyncpg.Connection, Depends(get_connection)],
+) -> ArticleRepository:
+    """Создаёт ArticleRepository для текущего подключения БД."""
+    return ArticleRepository(connection)
+
+
+def get_article_version_repository(
+    connection: Annotated[asyncpg.Connection, Depends(get_connection)],
+) -> ArticleVersionRepository:
+    """Создаёт ArticleVersionRepository для текущего подключения БД."""
+    return ArticleVersionRepository(connection)
+
+
+def get_article_service(
+    article_repository: Annotated[ArticleRepository, Depends(get_article_repository)],
+    article_version_repository: Annotated[ArticleVersionRepository, Depends(get_article_version_repository)],
+    space_repository: Annotated[SpaceRepository, Depends(get_space_repository)],
+) -> ArticleService:
+    """Создаёт ArticleService."""
+    return ArticleService(article_repository, article_version_repository, space_repository)
 
 
 def get_user_service(
