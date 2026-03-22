@@ -154,7 +154,7 @@ class TestSpacesE2E:
 
         # Create space with valid session
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "My First Space"},
             headers={"Authorization": "Bearer test-session-123"},
         )
@@ -183,7 +183,7 @@ class TestSpacesE2E:
 
         for name in space_names:
             response = client.post(
-                "/spaces",
+                "/api/v1/spaces",
                 json={"name": name},
                 headers={"Authorization": "Bearer test-session-123"},
             )
@@ -206,7 +206,7 @@ class TestSpacesE2E:
 
         # Try to create space with non-existent session token
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "Unauthorized Space"},
             headers={"Authorization": "Bearer invalid-session-token"},
         )
@@ -248,7 +248,7 @@ class TestSpacesE2E:
 
         # Create space with session 1
         response1 = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "Space for User 1"},
             headers={"Authorization": "Bearer test-session-1"},
         )
@@ -256,7 +256,7 @@ class TestSpacesE2E:
 
         # Create space with session 2
         response2 = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "Space for User 2"},
             headers={"Authorization": "Bearer test-session-2"},
         )
@@ -287,7 +287,7 @@ class TestSpacesE2E:
 
         # Try to create space with whitespace-only name
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "   \t\n  "},
             headers={"Authorization": "Bearer test-session-123"},
         )
@@ -311,12 +311,12 @@ class TestSpacesE2E:
         session_service._sessions["test-session-123"] = session_data
 
         # Test 1: Missing auth header
-        r1 = client.post("/spaces", json={"name": "Test"})
+        r1 = client.post("/api/v1/spaces", json={"name": "Test"})
         assert r1.status_code == status.HTTP_401_UNAUTHORIZED
 
         # Test 2: Invalid auth header
         r2 = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "Test"},
             headers={"Authorization": "InvalidFormat"},
         )
@@ -324,7 +324,7 @@ class TestSpacesE2E:
 
         # Test 3: Empty name
         r3 = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": ""},
             headers={"Authorization": "Bearer test-session-123"},
         )
@@ -332,7 +332,7 @@ class TestSpacesE2E:
 
         # Test 4: Valid request should still work
         r4 = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "Valid Space"},
             headers={"Authorization": "Bearer test-session-123"},
         )
@@ -357,7 +357,7 @@ class TestSpacesE2E:
         responses = []
         for i in range(5):
             response = client.post(
-                "/spaces",
+                "/api/v1/spaces",
                 json={"name": f"Space {i+1}"},
                 headers={"Authorization": "Bearer test-session-123"},
             )
@@ -389,7 +389,7 @@ class TestSpacesE2E:
 
         # Create space
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "Format Test Space"},
             headers={"Authorization": "Bearer test-session-123"},
         )

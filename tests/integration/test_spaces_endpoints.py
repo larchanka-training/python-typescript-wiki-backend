@@ -144,7 +144,7 @@ def test_create_space_invalid_auth_header_returns_400(
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces", json={"name": "New Space"}, headers={"Authorization": "InvalidToken"}
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": "InvalidToken"}
         )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -158,7 +158,7 @@ def test_create_space_empty_auth_header_returns_401(client_factory: Callable[[ob
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces", json={"name": "New Space"}, headers={"Authorization": ""}
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": ""}
         )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -172,7 +172,7 @@ def test_create_space_bearer_no_token_returns_400(client_factory: Callable[[obje
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces", json={"name": "New Space"}, headers={"Authorization": "Bearer "}
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": "Bearer "}
         )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -187,7 +187,7 @@ def test_create_space_name_too_long_returns_400(client_factory: Callable[[object
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": long_name},
             headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
         )
@@ -202,7 +202,7 @@ def test_create_space_missing_name_field_returns_422(client_factory: Callable[[o
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces", json={}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            "/api/v1/spaces", json={}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
         )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -221,7 +221,7 @@ def test_create_space_session_expired_returns_401(client_factory: Callable[[obje
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces", json={"name": "New Space"}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
         )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -236,7 +236,7 @@ def test_create_space_with_special_chars_returns_201(client_factory: Callable[[o
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": special_name},
             headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
         )
@@ -253,7 +253,7 @@ def test_create_space_with_unicode_returns_201(client_factory: Callable[[object,
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": unicode_name},
             headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
         )
@@ -269,7 +269,7 @@ def test_create_space_single_char_name_returns_201(client_factory: Callable[[obj
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": "A"},
             headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
         )
@@ -286,7 +286,7 @@ def test_create_space_max_length_name_returns_201(client_factory: Callable[[obje
 
     with client_factory(session_service, space_service) as client:
         response = client.post(
-            "/spaces",
+            "/api/v1/spaces",
             json={"name": max_name},
             headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
         )

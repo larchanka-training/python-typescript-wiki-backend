@@ -61,7 +61,7 @@ def test_verity_test_token_returns_200(client_factory: Callable) -> None:
     """Valid test token returns 200 using real TokenService validation."""
     client = client_factory()
     response = client.post(
-        "/token",
+        "/api/v1/token",
         json={"token": "32u5g34u45gi243u4g23iu"},
     )
 
@@ -72,7 +72,7 @@ def test_verity_test_token_returns_errors(client_factory: Callable) -> None:
     """Invalid token returns 401 using real TokenService validation."""
     client = client_factory()
     response = client.post(
-        "/token",
+        "/api/v1/token",
         json={"token": "RandomTestToken12345"},
     )
 
