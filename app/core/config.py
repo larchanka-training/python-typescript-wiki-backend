@@ -75,7 +75,7 @@ def get_settings() -> Settings:
         oauth_name_secret_key=_env_required("OAUTH_NAME_SECRET_KEY"),
         token_ttl_seconds=_env_int_required("TOKEN_TTL_SECONDS"),
         session_ttl_seconds=_env_int_required("SESSION_TTL_SECONDS"),
-        environment=_env_enum_required("ENVIRONMENT", Environment),
+        environment=_env_enum_optional("ENVIRONMENT", Environment, Environment.DEVELOPMENT),
         test_access_token=_env_optional("TEST_ACCESS_TOKEN"),
         cors_origins=[
             origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",")
