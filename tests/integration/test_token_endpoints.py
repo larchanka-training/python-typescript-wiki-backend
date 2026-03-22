@@ -8,7 +8,7 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 import pytest
 
-from app.core.errors import AppError, ErrorCode
+from app.core.errors import ErrorCode
 from app.db import get_connection
 from app.main import app
 from app.services.models import UserProfile
