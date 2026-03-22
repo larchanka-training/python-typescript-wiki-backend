@@ -56,20 +56,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(lifespan=lifespan)
 
-settings = get_settings()
-
-# If "*" is in origins, we can't use allow_credentials=True
-allow_all_origins = "*" in settings.cors_origins
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=not allow_all_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=[TRACE_ID_HEADER],
-)
-
 # slowapi reads limiter from app.state and uses the exception handler for 429 responses.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exception_handler)
@@ -91,6 +77,19 @@ async def trace_id_middleware(
     response = await call_next(request)
     response.headers[TRACE_ID_HEADER] = trace_id
     return response
+
+
+settings = get_settings()
+# If "*" is in origins, we can't use allow_credentials=True
+allow_all_origins = "*" in settings.cors_origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=not allow_all_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=[TRACE_ID_HEADER],
+)
 
 
 @app.get("/")
