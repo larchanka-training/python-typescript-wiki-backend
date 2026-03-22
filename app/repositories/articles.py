@@ -277,6 +277,45 @@ class ArticleRepository:
         )
         return [dict(row) for row in rows]
 
+    async def search_articles(
+        self,
+        user_id: int,
+        query: str,
+        limit: int = 20,
+    ) -> list[dict]:
+        """Searches articles by title and content across member spaces.
+
+        Args:
+            user_id: ID of the user searching.
+            query: Search query string.
+            limit: Maximum results to return.
+
+        Returns:
+            List of dictionaries with id, title, space_id, space_name.
+        """
+        pattern = f"%{query}%"
+        return await self._connection.fetch(
+            """
+            SELECT
+                a.id,
+                a.title,
+                a.space_id,
+                s.name as space_name,
+                v.updated_at
+            FROM articles a
+            JOIN article_versions v ON a.version_id = v.id
+            JOIN spaces s ON a.space_id = s.id
+            JOIN space_members sm ON s.id = sm.space_id
+            WHERE sm.user_id = $1
+              AND (a.title ILIKE $2 OR v.content ILIKE $2)
+            ORDER BY v.updated_at DESC
+            LIMIT $3;
+            """,
+            user_id,
+            pattern,
+            limit,
+        )
+
 
 class ArticleVersionRepository:
     """Repository for article versions (asyncpg)."""
@@ -345,41 +384,3 @@ class ArticleVersionRepository:
             article_id,
         )
         return dict(row) if row else None
-    async def search_articles(
-        self,
-        user_id: int,
-        query: str,
-        limit: int = 20,
-    ) -> list[dict]:
-        """Searches articles by title and content across member spaces.
-
-        Args:
-            user_id: ID of the user searching.
-            query: Search query string.
-            limit: Maximum results to return.
-
-        Returns:
-            List of dictionaries with id, title, space_id, space_name.
-        """
-        pattern = f"%{query}%"
-        return await self._connection.fetch(
-            """
-            SELECT
-                a.id,
-                a.title,
-                a.space_id,
-                s.name as space_name,
-                v.updated_at
-            FROM articles a
-            JOIN article_versions v ON a.version_id = v.id
-            JOIN spaces s ON a.space_id = s.id
-            JOIN space_members sm ON s.id = sm.space_id
-            WHERE sm.user_id = $1
-              AND (a.title ILIKE $2 OR v.content ILIKE $2)
-            ORDER BY v.updated_at DESC
-            LIMIT $3;
-            """,
-            user_id,
-            pattern,
-            limit,
-        )
