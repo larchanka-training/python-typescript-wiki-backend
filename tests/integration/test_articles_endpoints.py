@@ -59,8 +59,10 @@ class FakeArticleService:
         _ = space_id, title, content, user_id, show_toc, parent_id, position
         return self._article_id
 
-    async def list_articles(self, space_id: UUID, user_id: int) -> list[dict]:
-        _ = space_id, user_id
+    async def list_articles(
+        self, space_id: UUID, user_id: int, user_permission: str | None, parent_id: UUID | None = None, filter_by_parent: bool = False
+    ) -> list[dict]:
+        _ = space_id, user_id, user_permission, parent_id, filter_by_parent
         now = datetime.now(timezone.utc)
         return [
             {
@@ -72,6 +74,27 @@ class FakeArticleService:
                 "position": 0,
                 "created_at": now,
                 "updated_at": now,
+                "is_locked": False,
+                "permissions": {"can_edit": True, "can_delete": False, "can_lock": False},
+            }
+        ]
+
+    async def get_article_path(self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None) -> list[dict]:
+        _ = space_id, article_id, user_id, user_permission
+        now = datetime.now(timezone.utc)
+        # Return path to root (only the article itself in this fake)
+        return [
+            {
+                "id": self._article_id,
+                "space_id": space_id,
+                "title": "Test Article",
+                "owner_id": 1,
+                "parent_id": None,
+                "position": 0,
+                "created_at": now,
+                "updated_at": now,
+                "is_locked": False,
+                "permissions": {"can_edit": True, "can_delete": False, "can_lock": False},
             }
         ]
 
@@ -94,10 +117,20 @@ class FakeArticleService:
         self._version_id = uuid4()
         return self._version_id
 
+    async def lock_article(
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
+    ) -> None:
+        _ = space_id, article_id, user_id, user_permission
+
+    async def unlock_article(
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
+    ) -> None:
+        _ = space_id, article_id, user_id, user_permission
+
     async def get_article_versions(
-        self, space_id: UUID, article_id: UUID, user_id: int,
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
     ) -> list[dict]:
-        _ = space_id, article_id, user_id
+        _ = space_id, article_id, user_id, user_permission
         now = datetime.now(timezone.utc)
         return [
             {
@@ -111,17 +144,19 @@ class FakeArticleService:
                 "content_format": "markdown",
                 "change_summary": None,
                 "created_at": now,
+                "is_locked": False,
+                "permissions": {"can_edit": True, "can_delete": False, "can_lock": False},
             }
         ]
 
     async def get_latest_article_version(
-        self, space_id: UUID, article_id: UUID, user_id: int,
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
     ) -> dict:
-        _ = space_id, article_id, user_id
+        _ = space_id, article_id, user_id, user_permission
         now = datetime.now(timezone.utc)
         return {
             "id": self._version_id,
-            "article_id": ARTICLE_ID,
+            "article_id": article_id,
             "version_number": 1,
             "title": "Test Article",
             "content": "# Test Content",
@@ -130,16 +165,18 @@ class FakeArticleService:
             "content_format": "markdown",
             "change_summary": None,
             "created_at": now,
+            "is_locked": False,
+            "permissions": {"can_edit": True, "can_delete": False, "can_lock": False},
         }
 
     async def get_article_version_by_number(
-        self, space_id: UUID, article_id: UUID, version_number: int, user_id: int,
+        self, space_id: UUID, article_id: UUID, version_number: int, user_id: int, user_permission: str | None,
     ) -> dict:
-        _ = space_id, article_id, user_id
+        _ = space_id, article_id, user_id, user_permission
         now = datetime.now(timezone.utc)
         return {
             "id": self._version_id,
-            "article_id": ARTICLE_ID,
+            "article_id": article_id,
             "version_number": version_number,
             "title": "Test Article",
             "content": "# Test Content",
@@ -148,12 +185,14 @@ class FakeArticleService:
             "content_format": "markdown",
             "change_summary": None,
             "created_at": now,
+            "is_locked": False,
+            "permissions": {"can_edit": True, "can_delete": False, "can_lock": False},
         }
 
     async def delete_article(
-        self, space_id: UUID, article_id: UUID, user_id: int, user_perm: str | None,
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
     ) -> None:
-        _ = space_id, article_id, user_id, user_perm
+        _ = space_id, article_id, user_id, user_permission
 
 
 class TestArticlesEndpoints(TestCase):

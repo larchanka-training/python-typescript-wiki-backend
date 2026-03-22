@@ -77,7 +77,7 @@ class TestArticleService(TestCase):
         user_id = 1
         space_id = uuid4()
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "owner"
         self.mock_article_repo.mark_deleted.return_value = None
 
@@ -108,7 +108,7 @@ class TestArticleService(TestCase):
         user_id = 1
         space_id = uuid4()
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "member"
 
         async def run_test():
@@ -126,12 +126,12 @@ class TestArticleService(TestCase):
         space_id = uuid4()
         versions = [{"id": uuid4(), "article_id": article_id, "version_number": 1}]
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "member"
         self.mock_article_version_repo.get_versions_by_article.return_value = versions
 
         async def run_test():
-            result = await self.article_service.get_article_versions(space_id, article_id, user_id)
+            result = await self.article_service.get_article_versions(space_id, article_id, user_id, None)
             assert result == versions
             self.mock_article_repo.get_article_by_id.assert_called_once_with(article_id)
             self.mock_article_version_repo.get_versions_by_article.assert_called_once_with(article_id)
@@ -147,7 +147,7 @@ class TestArticleService(TestCase):
 
         async def run_test():
             try:
-                await self.article_service.get_article_versions(space_id, article_id, user_id)
+                await self.article_service.get_article_versions(space_id, article_id, user_id, None)
                 assert False, "Expected ValueError"
             except ValueError as e:
                 assert str(e) == "Article not found"
@@ -159,12 +159,12 @@ class TestArticleService(TestCase):
         user_id = 1
         space_id = uuid4()
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = None
 
         async def run_test():
             try:
-                await self.article_service.get_article_versions(space_id, article_id, user_id)
+                await self.article_service.get_article_versions(space_id, article_id, user_id, None)
                 assert False, "Expected PermissionError"
             except PermissionError as e:
                 assert str(e) == "Access denied"
@@ -177,12 +177,12 @@ class TestArticleService(TestCase):
         user_id = 1
         version = {"id": uuid4(), "article_id": article_id, "version_number": 1}
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "member"
         self.mock_article_version_repo.get_latest_version_by_article.return_value = version
 
         async def run_test():
-            result = await self.article_service.get_latest_article_version(space_id, article_id, user_id)
+            result = await self.article_service.get_latest_article_version(space_id, article_id, user_id, None)
             assert result == version
             self.mock_article_repo.get_article_by_id.assert_called_once_with(article_id)
             self.mock_article_version_repo.get_latest_version_by_article.assert_called_once_with(article_id)
@@ -198,7 +198,7 @@ class TestArticleService(TestCase):
 
         async def run_test():
             try:
-                await self.article_service.get_latest_article_version(space_id, article_id, user_id)
+                await self.article_service.get_latest_article_version(space_id, article_id, user_id, None)
                 assert False, "Expected ValueError"
             except ValueError as e:
                 assert str(e) == "Article not found"
@@ -210,12 +210,12 @@ class TestArticleService(TestCase):
         user_id = 1
         space_id = uuid4()
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = None
 
         async def run_test():
             try:
-                await self.article_service.get_latest_article_version(space_id, article_id, user_id)
+                await self.article_service.get_latest_article_version(space_id, article_id, user_id, None)
                 assert False, "Expected PermissionError"
             except PermissionError as e:
                 assert str(e) == "Access denied"
@@ -227,13 +227,13 @@ class TestArticleService(TestCase):
         user_id = 1
         space_id = uuid4()
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "member"
         self.mock_article_version_repo.get_latest_version_by_article.return_value = None
 
         async def run_test():
             try:
-                await self.article_service.get_latest_article_version(space_id, article_id, user_id)
+                await self.article_service.get_latest_article_version(space_id, article_id, user_id, None)
                 assert False, "Expected ValueError"
             except ValueError as e:
                 assert str(e) == "No versions found for article"
@@ -246,13 +246,13 @@ class TestArticleService(TestCase):
         user_id = 1
         version = {"id": uuid4(), "article_id": article_id, "version_number": 2}
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "member"
         self.mock_article_version_repo.get_version_by_number.return_value = version
 
         async def run_test():
             result = await self.article_service.get_article_version_by_number(
-                space_id, article_id, 2, user_id
+                space_id, article_id, 2, user_id, None
             )
             assert result == version
             self.mock_article_version_repo.get_version_by_number.assert_called_once_with(article_id, 2)
@@ -264,14 +264,14 @@ class TestArticleService(TestCase):
         space_id = uuid4()
         user_id = 1
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "member"
         self.mock_article_version_repo.get_version_by_number.return_value = None
 
         async def run_test():
             try:
                 await self.article_service.get_article_version_by_number(
-                    space_id, article_id, 99, user_id
+                    space_id, article_id, 99, user_id, None
                 )
                 assert False, "Expected ValueError"
             except ValueError as e:
@@ -288,9 +288,9 @@ class TestArticleService(TestCase):
         self.mock_article_repo.get_articles_by_space.return_value = articles
 
         async def run_test():
-            result = await self.article_service.list_articles(space_id, user_id)
+            result = await self.article_service.list_articles(space_id, user_id, None)
             assert result == articles
-            self.mock_article_repo.get_articles_by_space.assert_called_once_with(space_id)
+            self.mock_article_repo.get_articles_by_space.assert_called_once_with(space_id, None, False)
 
         asyncio.run(run_test())
 
@@ -302,7 +302,7 @@ class TestArticleService(TestCase):
 
         async def run_test():
             try:
-                await self.article_service.list_articles(space_id, user_id)
+                await self.article_service.list_articles(space_id, user_id, None)
                 assert False, "Expected PermissionError"
             except PermissionError:
                 pass
@@ -315,7 +315,7 @@ class TestArticleService(TestCase):
         user_id = 1
         new_version_id = uuid4()
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "owner"
         self.mock_article_repo.save_new_version.return_value = new_version_id
 
@@ -333,7 +333,7 @@ class TestArticleService(TestCase):
         space_id = uuid4()
         user_id = 1
 
-        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id}
+        self.mock_article_repo.get_article_by_id.return_value = {"space_id": space_id, "is_locked": False}
         self.mock_space_repo.get_membership_role.return_value = "member"
 
         async def run_test():
