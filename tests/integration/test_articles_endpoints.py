@@ -79,6 +79,44 @@ class FakeArticleService:
             }
         ]
 
+    async def get_recent_articles(self, user_id: int, limit: int = 10) -> list[dict]:
+        _ = user_id, limit
+        now = datetime.now(timezone.utc)
+        return [
+            {
+                "id": uuid4(),
+                "title": "Recent Article 1",
+                "space_id": uuid4(),
+                "space_name": "Recent Space",
+                "owner_id": 1,
+                "parent_id": None,
+                "position": 0,
+                "created_at": now,
+                "updated_at": now,
+                "is_locked": False,
+                "permissions": {"can_edit": True, "can_delete": False, "can_lock": False},
+            }
+        ]
+
+    async def search_articles(self, user_id: int, query: str, limit: int = 20) -> list[dict]:
+        _ = user_id, query, limit
+        now = datetime.now(timezone.utc)
+        return [
+            {
+                "id": uuid4(),
+                "title": "Search Result",
+                "space_id": uuid4(),
+                "space_name": "Search Space",
+                "owner_id": 1,
+                "parent_id": None,
+                "position": 0,
+                "created_at": now,
+                "updated_at": now,
+                "is_locked": False,
+                "permissions": {"can_edit": True, "can_delete": False, "can_lock": False},
+            }
+        ]
+
     async def get_article_path(self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None) -> list[dict]:
         _ = space_id, article_id, user_id, user_permission
         now = datetime.now(timezone.utc)
@@ -300,6 +338,78 @@ class TestArticlesEndpoints(TestCase):
         data = response.json()
         self.assertEqual(data["id"], str(VERSION_ID))
         self.assertEqual(data["title"], "Test Article")
+
+    # ── GET recent articles ─────────────────────────────────────────
+
+    def test_get_recent_articles_success_returns_200(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.get(
+                "/api/v1/articles/recent",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIsInstance(data["articles"], list)
+        self.assertEqual(len(data["articles"]), 1)
+        self.assertIn("space_name", data["articles"][0])
+        self.assertEqual(data["articles"][0]["title"], "Recent Article 1")
+
+    def test_get_recent_articles_missing_session_returns_401(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.get("/api/v1/articles/recent")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.json()["message"], ErrorCode.SESSION_MISSING)
+
+    # ── GET search articles ─────────────────────────────────────────
+
+    def test_search_articles_success_returns_200(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.get(
+                "/api/v1/articles/search?q=test",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIsInstance(data["articles"], list)
+        self.assertEqual(len(data["articles"]), 1)
+        self.assertEqual(data["articles"][0]["title"], "Search Result")
+
+    def test_search_articles_min_length_returns_400(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.get(
+                "/api/v1/articles/search?q=te",
+                headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json()["message"], ErrorCode.VALIDATION_ERROR)
+
+    def test_search_articles_unauthorized_returns_401(self):
+        session_service = FakeSessionService(self._sample_session_data())
+        article_service = FakeArticleService(ARTICLE_ID, VERSION_ID)
+
+        with self._create_client(session_service, article_service) as client:
+            response = client.get(
+                "/api/v1/articles/search?q=test",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.json()["message"], ErrorCode.SESSION_MISSING)
 
     # ── PUT save new version ────────────────────────────────────────
 

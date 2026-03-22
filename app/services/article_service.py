@@ -268,3 +268,10 @@ class ArticleService:
         version["permissions"] = self._calculate_permissions(role, user_permission, article["is_locked"])
 
         return version
+    async def search_articles(self, user_id: int, query: str, limit: int = 20) -> list[dict]:
+        """Searches articles by title and content."""
+        return await self._article_repository.search_articles(user_id, query, limit)
+
+    async def get_recent_articles(self, user_id: int, limit: int = 10) -> list[dict]:
+        """Get latest user-touched articles."""
+        return await self._article_repository.get_recent_articles_by_user(user_id, limit)

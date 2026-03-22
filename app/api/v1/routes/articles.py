@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Header, Request, status
+from fastapi import APIRouter, Body, Depends, Header, Query, Request, status
 
 from app.api.deps import get_article_service, get_session_service
 from app.api.v1.schemas.articles import (
@@ -19,6 +19,7 @@ from app.api.v1.schemas.articles import (
     ArticleListResponse,
     ArticleSaveRequest,
     ArticleVersionResponse,
+    ArticleSearchResponse,
 )
 from app.core.errors import AppError, ErrorCode, ErrorResponse
 from app.core.trace import get_trace_id
@@ -534,6 +535,66 @@ async def get_article_version(
         raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
+@router.get(
+    "/articles/recent",
+    response_model=ArticleListResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="List recently touched articles across all spaces",
+)
+async def get_recent_articles(
+    request: Request,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    limit: int = 10,
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> ArticleListResponse:
+    """Returns articles the user recently edited or created."""
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+
+    articles = await article_service.get_recent_articles(user_id, limit)
+    return ArticleListResponse(
+        articles=[ArticleListItem(**a) for a in articles],
+    )
+
+
+@router.get(
+    "/articles/search",
+    response_model=ArticleSearchResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Global search across all articles the user has access to",
+)
+async def search_articles(
+    request: Request,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    q: Annotated[str, Query(min_length=3, max_length=64)],
+    limit: Annotated[int, Query(gt=0, le=100)] = 20,
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> ArticleSearchResponse:
+    """Searches articles by title and content.
+
+    Requires session authentication via Bearer token.
+    Possible statuses: 200 OK; 400 VALIDATION_ERROR; 401 SESSION_MISSING/SESSION_EXPIRED;
+    500 INTERNAL_ERROR.
+    """
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+
+    articles = await article_service.search_articles(user_id, q, limit)
+    return ArticleSearchResponse(
+        articles=[ArticleListItem(**a) for a in articles],
+    )
 
 
 # ── helpers ─────────────────────────────────────────────────────────

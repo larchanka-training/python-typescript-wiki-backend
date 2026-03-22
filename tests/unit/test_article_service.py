@@ -386,6 +386,33 @@ class TestArticleService(TestCase):
 
         asyncio.run(run_test())
 
+    def test_search_articles_success(self):
+        user_id = 1
+        query = "test"
+        articles = [{"id": uuid4(), "title": "Search Result"}]
+
+        self.mock_article_repo.search_articles.return_value = articles
+
+        async def run_test():
+            result = await self.article_service.search_articles(user_id, query)
+            assert result == articles
+            self.mock_article_repo.search_articles.assert_called_once_with(user_id, query, 20)
+
+        asyncio.run(run_test())
+
+    def test_get_recent_articles_success(self):
+        user_id = 1
+        articles = [{"id": uuid4(), "title": "Recent"}]
+
+        self.mock_article_repo.get_recent_articles_by_user.return_value = articles
+
+        async def run_test():
+            result = await self.article_service.get_recent_articles(user_id)
+            assert result == articles
+            self.mock_article_repo.get_recent_articles_by_user.assert_called_once_with(user_id, 10)
+
+        asyncio.run(run_test())
+
     def test_save_article_version_wrong_space(self):
         article_id = uuid4()
         space_id = uuid4()

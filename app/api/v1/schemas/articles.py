@@ -106,9 +106,16 @@ class ArticleListItem(BaseModel):
     updated_at: datetime = Field(..., description="Timestamp of the last update")
     is_locked: bool = Field(False, description="Whether the article is locked")
     permissions: ArticlePermissions | None = Field(None, description="Action permissions for the article")
+    space_name: str | None = Field(None, description="Name of the space (for cross-space lists)")
 
 
 class ArticleListResponse(BaseModel):
     """Response for listing articles in a space."""
 
     articles: list[ArticleListItem] = Field(..., description="List of articles")
+
+
+class ArticleSearchResponse(BaseModel):
+    """Response for article search."""
+
+    articles: list[ArticleListItem] = Field(..., description="List of matching articles")

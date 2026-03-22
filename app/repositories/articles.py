@@ -253,6 +253,30 @@ class ArticleRepository:
             deleted_at,
         )
 
+    async def get_recent_articles_by_user(self, user_id: int, limit: int = 10) -> list[dict]:
+        """Fetch latest articles edited or created by user across all joined spaces."""
+        rows = await self._connection.fetch(
+            """
+            SELECT DISTINCT ON (a.updated_at, a.id)
+                   a.id, a.title, a.updated_at, a.created_at, a.space_id, 
+                   s.name as space_name, a.owner_id, a.is_locked,
+                   u.username as owner_username
+            FROM articles a
+            JOIN spaces s ON a.space_id = s.id
+            JOIN space_members sm ON s.id = sm.space_id
+            LEFT JOIN article_versions av ON a.id = av.article_id
+            LEFT JOIN users u ON a.owner_id = u.id
+            WHERE sm.user_id = $1
+              AND (a.owner_id = $1 OR av.author_id = $1)
+              AND a.deleted_at IS NULL
+            ORDER BY a.updated_at DESC, a.id
+            LIMIT $2;
+            """,
+            user_id,
+            limit,
+        )
+        return [dict(row) for row in rows]
+
 
 class ArticleVersionRepository:
     """Repository for article versions (asyncpg)."""
@@ -321,3 +345,41 @@ class ArticleVersionRepository:
             article_id,
         )
         return dict(row) if row else None
+    async def search_articles(
+        self,
+        user_id: int,
+        query: str,
+        limit: int = 20,
+    ) -> list[dict]:
+        """Searches articles by title and content across member spaces.
+
+        Args:
+            user_id: ID of the user searching.
+            query: Search query string.
+            limit: Maximum results to return.
+
+        Returns:
+            List of dictionaries with id, title, space_id, space_name.
+        """
+        pattern = f"%{query}%"
+        return await self._connection.fetch(
+            """
+            SELECT
+                a.id,
+                a.title,
+                a.space_id,
+                s.name as space_name,
+                v.updated_at
+            FROM articles a
+            JOIN article_versions v ON a.version_id = v.id
+            JOIN spaces s ON a.space_id = s.id
+            JOIN space_members sm ON s.id = sm.space_id
+            WHERE sm.user_id = $1
+              AND (a.title ILIKE $2 OR v.content ILIKE $2)
+            ORDER BY v.updated_at DESC
+            LIMIT $3;
+            """,
+            user_id,
+            pattern,
+            limit,
+        )
