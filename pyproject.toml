@@ -107,3 +107,10 @@ runtime-evaluated-decorators = [
     "fastapi.delete",
     "fastapi.patch",
 ]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # Suppress deprecated asyncio.iscoroutinefunction from slowapi (Python 3.14+)
+    # This is a third-party library issue, will be fixed in future slowapi releases
+    "ignore:.*iscoroutinefunction.*:DeprecationWarning:slowapi",
+]

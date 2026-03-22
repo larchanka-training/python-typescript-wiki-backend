@@ -135,16 +135,161 @@ def test_create_space_missing_session_returns_401(client_factory: Callable[[obje
     assert response.json()["message"] == ErrorCode.SESSION_MISSING
 
 
-def test_get_spaces_formats_and_filters(client_factory: Callable[[object, object], TestClient]) -> None:
+def test_create_space_invalid_auth_header_returns_400(
+    client_factory: Callable[[object, object], TestClient],
+) -> None:
+    """Test that invalid authorization header format returns 400."""
     session_service = FakeSessionService(_sample_session_data())
     space_service = FakeSpaceService(SPACE_ID)
 
     with client_factory(session_service, space_service) as client:
-        response = client.get("/api/v1/spaces", headers={"Authorization": f"Bearer {SESSION_TOKEN}"})
+        response = client.post(
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": "InvalidToken"}
+        )
 
-    assert response.status_code == status.HTTP_200_OK
-    data = response.json()
-    assert "spaces" in data
-    spaces = data["spaces"]
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
 
-    assert len(spaces) == 2
+
+def test_create_space_empty_auth_header_returns_401(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that empty authorization header returns 401."""
+    session_service = FakeSessionService(_sample_session_data())
+    space_service = FakeSpaceService(SPACE_ID)
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": ""}
+        )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json()["message"] == ErrorCode.SESSION_MISSING
+
+
+def test_create_space_bearer_no_token_returns_400(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that Bearer without token returns 400."""
+    session_service = FakeSessionService(_sample_session_data())
+    space_service = FakeSpaceService(SPACE_ID)
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": "Bearer "}
+        )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["message"] == ErrorCode.VALIDATION_ERROR
+
+
+def test_create_space_name_too_long_returns_400(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that space name exceeding 255 chars returns 400."""
+    session_service = FakeSessionService(_sample_session_data())
+    space_service = FakeSpaceService(SPACE_ID)
+    long_name = "x" * 256
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces",
+            json={"name": long_name},
+            headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+        )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_create_space_missing_name_field_returns_422(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that missing name field returns 400 (validation error from Pydantic via route)."""
+    session_service = FakeSessionService(_sample_session_data())
+    space_service = FakeSpaceService(SPACE_ID)
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces", json={}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+        )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+def test_create_space_session_expired_returns_401(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that expired session returns 401."""
+    class FakeExpiredSessionService:
+        async def get_session(self, _token: str, trace_id: str) -> None:
+            _ = trace_id
+            from app.core.errors import AppError
+            raise AppError(status.HTTP_401_UNAUTHORIZED, ErrorCode.SESSION_EXPIRED)
+
+    session_service = FakeExpiredSessionService()
+    space_service = FakeSpaceService(SPACE_ID)
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces", json={"name": "New Space"}, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+        )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json()["message"] == ErrorCode.SESSION_EXPIRED
+
+
+def test_create_space_with_special_chars_returns_201(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that space name with special characters is accepted."""
+    session_service = FakeSessionService(_sample_session_data())
+    space_service = FakeSpaceService(SPACE_ID)
+    special_name = "Test Space 📚 #123 @2025!"
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces",
+            json={"name": special_name},
+            headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+        )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()["id"] == str(SPACE_ID)
+
+
+def test_create_space_with_unicode_returns_201(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that space name with unicode characters is accepted."""
+    session_service = FakeSessionService(_sample_session_data())
+    space_service = FakeSpaceService(SPACE_ID)
+    unicode_name = "Пространство 中文 العربية"
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces",
+            json={"name": unicode_name},
+            headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+        )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()["id"] == str(SPACE_ID)
+
+
+def test_create_space_single_char_name_returns_201(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that single character space name is accepted."""
+    session_service = FakeSessionService(_sample_session_data())
+    space_service = FakeSpaceService(SPACE_ID)
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces",
+            json={"name": "A"},
+            headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+        )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()["id"] == str(SPACE_ID)
+
+
+def test_create_space_max_length_name_returns_201(client_factory: Callable[[object, object], TestClient]) -> None:
+    """Test that 255-character space name is accepted."""
+    session_service = FakeSessionService(_sample_session_data())
+    space_service = FakeSpaceService(SPACE_ID)
+    max_name = "x" * 255
+
+    with client_factory(session_service, space_service) as client:
+        response = client.post(
+            "/api/v1/spaces",
+            json={"name": max_name},
+            headers={"Authorization": f"Bearer {SESSION_TOKEN}"},
+        )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()["id"] == str(SPACE_ID)

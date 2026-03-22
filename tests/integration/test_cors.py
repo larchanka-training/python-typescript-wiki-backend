@@ -14,7 +14,8 @@ def test_cors_preflight_options():
             "Access-Control-Request-Headers": "Content-Type",
         }
     )
-    
+    if response.status_code != 200:
+        print(f"DEBUG: Status {response.status_code}, Body: {response.text}")
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] in ["http://training.wiki", "*"]
     assert "POST" in response.headers["access-control-allow-methods"]

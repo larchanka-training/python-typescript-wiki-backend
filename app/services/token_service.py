@@ -14,6 +14,7 @@ from typing import Any
 from Crypto.Cipher import AES
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from app.core.environment import Environment
 from app.core.errors import AppError, ErrorCode
 
 logger = logging.getLogger(__name__)
@@ -40,12 +41,16 @@ class TokenService:
 
     Алгоритм и порядок операций соответствуют docs/oauth.name и приложенному Python3 примеру:
     base64 -> iv/hmac/ciphertext -> HMAC compare -> AES-256-CBC -> PKCS#7 -> JSON/JWT.
+    
+    В dev режиме поддерживает тестовые токены через verify_test_token().
     """
 
-    def __init__(self, *, application_id: str, secret_key: str, ttl_seconds: int) -> None:
+    def __init__(self, *, application_id: str, secret_key: str, ttl_seconds: int, environment: Environment | str = "production", test_access_token: str | None = None) -> None:
         private_key = f"{application_id}:{secret_key}"
         self._key = hashlib.sha256(private_key.encode()).digest()
         self._ttl_seconds = ttl_seconds
+        self._environment = environment
+        self._test_access_token = test_access_token
 
     def verify_token(self, token: str, trace_id: str | None = None) -> TokenPayload:
         """Дешифрует, парсит и валидирует токен.
@@ -71,6 +76,30 @@ class TokenService:
                            trace_id, data.created_at, now, self._ttl_seconds)
             raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
         return data
+
+    def verify_test_token(self, token: str, trace_id: str | None = None) -> TokenPayload:
+        """Валидирует тестовый токен только в dev режиме.
+        
+        Используется для интеграционных тестов. Возвращает фиксированный профиль тестового пользователя.
+        """
+        _ = trace_id
+        if self._environment != Environment.DEVELOPMENT or not self._test_access_token:
+            raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
+        
+        if token != self._test_access_token:
+            raise AppError(401, ErrorCode.OAUTH_CODE_INVALID)
+        
+        # Возвращаем фиксированный профиль тестового пользователя
+        now = int(time.time())
+        return TokenPayload(
+            telegram_id=9999999,
+            username="test_user",
+            created_at=now,
+            first_name="Test",
+            last_name="User",
+            photo_url=None,
+            permission=None,
+        )
 
     def _decrypt(self, token: str) -> dict[str, Any]:
         try:

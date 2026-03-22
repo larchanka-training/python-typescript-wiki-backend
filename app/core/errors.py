@@ -29,6 +29,7 @@ class ErrorCode(str, Enum):
     OAUTH_STATE_INVALID = "OAUTH_STATE_INVALID"  # Некорректный state (401).
     SESSION_MISSING = "SESSION_MISSING"  # Сессия не передана (401).
     SESSION_EXPIRED = "SESSION_EXPIRED"  # Сессия истекла/отозвана (401).
+    PERMISSION_DENIED = "PERMISSION_DENIED"  # Недостаточно прав (403).
     NOT_FOUND = "NOT_FOUND"  # Ресурс не найден (404).
     FORBIDDEN = "FORBIDDEN"  # Нет доступа (403).
     ARTICLE_VERSION_CONFLICT = "ARTICLE_VERSION_CONFLICT"  # Конфликт версий (409).
