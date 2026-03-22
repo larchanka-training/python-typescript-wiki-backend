@@ -158,7 +158,7 @@ class ArticleRepository:
         row = await self._connection.fetchrow(
             """
             SELECT a.id, a.space_id, a.title, a.owner_id, a.parent_id, a.position,
-                   a.version_id, a.created_at, a.updated_at, a.deleted_at,
+                   a.version_id, a.created_at, a.updated_at, a.deleted_at, a.is_locked,
                    u.username as owner_username, u.telegram_id as owner_telegram_id
             FROM articles a
             LEFT JOIN users u ON a.owner_id = u.id
@@ -168,19 +168,52 @@ class ArticleRepository:
         )
         return dict(row) if row else None
 
-    async def get_articles_by_space(self, space_id: UUID) -> list[dict]:
+    async def get_articles_by_space(self, space_id: UUID, parent_id: UUID | None = None, filter_by_parent: bool = False) -> list[dict]:
         """Return list of articles in the space (for tree building)."""
-        rows = await self._connection.fetch(
-            """
+        query = """
             SELECT a.id, a.space_id, a.title, a.owner_id, a.parent_id, a.position,
-                   a.created_at, a.updated_at,
+                   a.created_at, a.updated_at, a.is_locked,
                    u.username as owner_username, u.telegram_id as owner_telegram_id
             FROM articles a
             LEFT JOIN users u ON a.owner_id = u.id
             WHERE a.space_id = $1 AND a.deleted_at IS NULL
-            ORDER BY a.position, a.created_at;
+        """
+        params = [space_id]
+        if filter_by_parent:
+            if parent_id is None:
+                query += " AND a.parent_id IS NULL"
+            else:
+                query += " AND a.parent_id = $2"
+                params.append(parent_id)
+
+        query += " ORDER BY a.position, a.created_at;"
+        rows = await self._connection.fetch(query, *params)
+        return [dict(row) for row in rows]
+
+    async def get_article_ancestors(self, article_id: UUID) -> list[dict]:
+        """Fetch all ancestors of an article recursively (path to root) with full details."""
+        rows = await self._connection.fetch(
+            """
+            WITH RECURSIVE ancestors AS (
+                SELECT a.id, a.space_id, a.title, a.owner_id, a.parent_id, a.position,
+                       a.created_at, a.updated_at, a.is_locked, 1 as level
+                FROM articles a
+                WHERE a.id = $1 AND a.deleted_at IS NULL
+                
+                UNION ALL
+                
+                SELECT a.id, a.space_id, a.title, a.owner_id, a.parent_id, a.position,
+                       a.created_at, a.updated_at, a.is_locked, ans.level + 1
+                FROM articles a
+                JOIN ancestors ans ON a.id = ans.parent_id
+                WHERE a.deleted_at IS NULL
+            )
+            SELECT ans.*, u.username as owner_username, u.telegram_id as owner_telegram_id
+            FROM ancestors ans
+            LEFT JOIN users u ON ans.owner_id = u.id
+            ORDER BY level DESC;
             """,
-            space_id,
+            article_id,
         )
         return [dict(row) for row in rows]
 
@@ -194,6 +227,18 @@ class ArticleRepository:
             """,
             title,
             article_id,
+        )
+
+    async def set_locked(self, article_id: UUID, is_locked: bool) -> None:
+        """Lock or unlock an article."""
+        await self._connection.execute(
+            """
+            UPDATE articles
+            SET is_locked = $2, updated_at = now()
+            WHERE id = $1;
+            """,
+            article_id,
+            is_locked,
         )
 
     async def mark_deleted(self, article_id: UUID, deleted_at: datetime) -> None:

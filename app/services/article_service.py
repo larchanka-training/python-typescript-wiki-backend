@@ -45,6 +45,17 @@ class ArticleService:
         if role != "owner":
             raise PermissionError("Only space owner or admin can perform this action")
 
+    def _calculate_permissions(
+        self, role: str | None, user_permission: str | None, is_locked: bool,
+    ) -> dict:
+        """Calculate article action permissions for a user."""
+        is_owner_or_admin = (user_permission == "admin") or (role == "owner")
+        return {
+            "can_edit": is_owner_or_admin and not is_locked,
+            "can_delete": is_owner_or_admin,
+            "can_lock": is_owner_or_admin,
+        }
+
     async def _get_article_or_404(self, article_id: UUID) -> dict:
         """Return article dict or raise ValueError."""
         article = await self._article_repository.get_article_by_id(article_id)
@@ -86,13 +97,27 @@ class ArticleService:
             position=position,
         )
 
-    async def list_articles(self, space_id: UUID, user_id: int) -> list[dict]:
-        """List all articles in a space.
+    async def list_articles(
+        self, space_id: UUID, user_id: int, user_permission: str | None, parent_id: UUID | None = None, filter_by_parent: bool = False
+    ) -> list[dict]:
+        """List all articles in a space (with optional parent_id filtering).
 
         User must have access to the space.
         """
-        await self._require_space_access(space_id, user_id)
-        return await self._article_repository.get_articles_by_space(space_id)
+        role = await self._require_space_access(space_id, user_id)
+        articles = await self._article_repository.get_articles_by_space(space_id, parent_id, filter_by_parent)
+        for a in articles:
+            a["permissions"] = self._calculate_permissions(role, user_permission, a.get("is_locked", False))
+        return articles
+
+    async def get_article_path(self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None) -> list[dict]:
+        """Fetch all ancestors to build a contextual tree."""
+        role = await self._require_space_access(space_id, user_id)
+        ancestors = await self._article_repository.get_article_ancestors(article_id)
+        
+        for a in ancestors:
+            a["permissions"] = self._calculate_permissions(role, user_permission, a.get("is_locked", False))
+        return ancestors
 
     async def save_article_version(
         self,
@@ -124,6 +149,9 @@ class ArticleService:
 
         await self._require_owner_or_admin(space_id, user_id, user_permission)
 
+        if article.get("is_locked"):
+            raise PermissionError("Article is locked")
+
         if not title.strip():
             raise ValueError("Title cannot be empty")
 
@@ -137,6 +165,26 @@ class ArticleService:
             change_summary=change_summary,
             base_version_number=base_version_number,
         )
+
+    async def lock_article(
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
+    ) -> None:
+        """Lock an article. Only owner or admin allowed."""
+        article = await self._get_article_or_404(article_id)
+        if article["space_id"] != space_id:
+            raise ValueError("Article not found in this space")
+        await self._require_owner_or_admin(space_id, user_id, user_permission)
+        await self._article_repository.set_locked(article_id, True)
+
+    async def unlock_article(
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
+    ) -> None:
+        """Unlock an article. Only owner or admin allowed."""
+        article = await self._get_article_or_404(article_id)
+        if article["space_id"] != space_id:
+            raise ValueError("Article not found in this space")
+        await self._require_owner_or_admin(space_id, user_id, user_permission)
+        await self._article_repository.set_locked(article_id, False)
 
     async def delete_article(
         self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
@@ -156,7 +204,7 @@ class ArticleService:
         await self._article_repository.mark_deleted(article_id, now)
 
     async def get_article_versions(
-        self, space_id: UUID, article_id: UUID, user_id: int,
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
     ) -> list[dict]:
         """Get all versions of an article.
 
@@ -166,12 +214,17 @@ class ArticleService:
         if article["space_id"] != space_id:
             raise ValueError("Article not found in this space")
 
-        await self._require_space_access(space_id, user_id)
+        role = await self._require_space_access(space_id, user_id)
 
-        return await self._article_version_repository.get_versions_by_article(article_id)
+        versions = await self._article_version_repository.get_versions_by_article(article_id)
+        for v in versions:
+            v["is_locked"] = article["is_locked"]
+            v["permissions"] = self._calculate_permissions(role, user_permission, article["is_locked"])
+
+        return versions
 
     async def get_latest_article_version(
-        self, space_id: UUID, article_id: UUID, user_id: int,
+        self, space_id: UUID, article_id: UUID, user_id: int, user_permission: str | None,
     ) -> dict:
         """Get the latest version of an article.
 
@@ -181,16 +234,19 @@ class ArticleService:
         if article["space_id"] != space_id:
             raise ValueError("Article not found in this space")
 
-        await self._require_space_access(space_id, user_id)
+        role = await self._require_space_access(space_id, user_id)
 
         version = await self._article_version_repository.get_latest_version_by_article(article_id)
         if not version:
             raise ValueError("No versions found for article")
 
+        version["is_locked"] = article["is_locked"]
+        version["permissions"] = self._calculate_permissions(role, user_permission, article["is_locked"])
+
         return version
 
     async def get_article_version_by_number(
-        self, space_id: UUID, article_id: UUID, version_number: int, user_id: int,
+        self, space_id: UUID, article_id: UUID, version_number: int, user_id: int, user_permission: str | None,
     ) -> dict:
         """Get a specific version of an article by its ordinal number.
 
@@ -200,12 +256,15 @@ class ArticleService:
         if article["space_id"] != space_id:
             raise ValueError("Article not found in this space")
 
-        await self._require_space_access(space_id, user_id)
+        role = await self._require_space_access(space_id, user_id)
 
         version = await self._article_version_repository.get_version_by_number(
             article_id, version_number
         )
         if not version:
             raise ValueError("Version not found")
+
+        version["is_locked"] = article["is_locked"]
+        version["permissions"] = self._calculate_permissions(role, user_permission, article["is_locked"])
 
         return version

@@ -209,23 +209,56 @@ async def list_articles(
     space_id: UUID,
     article_service: Annotated[ArticleService, Depends(get_article_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
+    parent_id: UUID | None = None,
+    filter_by_parent: bool = False,
     authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
 ) -> ArticleListResponse:
-    """Lists all articles in the specified space.
-
-    Returns articles with parent_id for building a tree in the sidebar.
-    User must have access to the space.
-    """
+    """Lists articles in the specified space (supports lazy-loading filtering by parent_id)."""
     trace_id = get_trace_id(request)
     session_token = _extract_bearer_token(authorization)
 
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id
+    user_perm = session_data.user.permission
 
     try:
-        articles = await article_service.list_articles(space_id, user_id)
+        articles = await article_service.list_articles(space_id, user_id, user_perm, parent_id, filter_by_parent)
         return ArticleListResponse(
             articles=[ArticleListItem(**a) for a in articles],
+        )
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
+@router.get(
+    "/spaces/{space_id}/articles/{article_id}/path",
+    response_model=ArticleListResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Get path (ancestors) of an article",
+)
+async def get_article_path(
+    request: Request,
+    space_id: UUID,
+    article_id: UUID,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> ArticleListResponse:
+    """Returns ancestors of an article to help expanding the tree sidebar."""
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+    user_perm = session_data.user.permission
+
+    try:
+        ancestors = await article_service.get_article_path(space_id, article_id, user_id, user_perm)
+        # Assuming ArticleListItem can handle partial model from ancestors if needed,
+        # otherwise we might need a separate schema for path info.
+        return ArticleListResponse(
+            articles=[ArticleListItem(**a) for a in ancestors],
         )
     except PermissionError:
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
@@ -258,9 +291,10 @@ async def get_article(
 
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id
+    user_perm = session_data.user.permission
 
     try:
-        version = await article_service.get_latest_article_version(space_id, article_id, user_id)
+        version = await article_service.get_latest_article_version(space_id, article_id, user_id, user_perm)
         return ArticleVersionResponse(**version)
     except ValueError:
         raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
@@ -314,7 +348,7 @@ async def save_article_version(
             base_version_number=body.base_version_number,
         )
         # Return the newly created version
-        version = await article_service.get_latest_article_version(space_id, article_id, user_id)
+        version = await article_service.get_latest_article_version(space_id, article_id, user_id, user_perm)
         return ArticleVersionResponse(**version)
     except ValueError:
         raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
@@ -322,6 +356,72 @@ async def save_article_version(
         raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
     except ConflictError:
         raise AppError(status.HTTP_409_CONFLICT, ErrorCode.ARTICLE_VERSION_CONFLICT) from None
+
+
+# ── POST /spaces/{space_id}/articles/{article_id}/lock ─────────────
+
+
+@router.post(
+    "/spaces/{space_id}/articles/{article_id}/lock",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=RESPONSES,
+    summary="Lock an article",
+)
+async def lock_article(
+    request: Request,
+    space_id: UUID,
+    article_id: UUID,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> None:
+    """Locks an article to prevent editing. Only space owner or superadmin allowed."""
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+    user_perm = session_data.user.permission
+
+    try:
+        await article_service.lock_article(space_id, article_id, user_id, user_perm)
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
+
+
+# ── POST /spaces/{space_id}/articles/{article_id}/unlock ───────────
+
+
+@router.post(
+    "/spaces/{space_id}/articles/{article_id}/unlock",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=RESPONSES,
+    summary="Unlock an article",
+)
+async def unlock_article(
+    request: Request,
+    space_id: UUID,
+    article_id: UUID,
+    article_service: Annotated[ArticleService, Depends(get_article_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
+    authorization: Annotated[str | None, Header(description="Bearer session token")] = None,
+) -> None:
+    """Unlocks a previously locked article. Only space owner or superadmin allowed."""
+    trace_id = get_trace_id(request)
+    session_token = _extract_bearer_token(authorization)
+
+    session_data = await session_service.get_session(session_token, trace_id)
+    user_id = session_data.user.id
+    user_perm = session_data.user.permission
+
+    try:
+        await article_service.unlock_article(space_id, article_id, user_id, user_perm)
+    except ValueError:
+        raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
+    except PermissionError:
+        raise AppError(status.HTTP_403_FORBIDDEN, ErrorCode.FORBIDDEN) from None
 
 
 # ── DELETE /spaces/{space_id}/articles/{article_id} ─────────────────
@@ -384,9 +484,10 @@ async def get_article_versions(
 
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id
+    user_perm = session_data.user.permission
 
     try:
-        versions = await article_service.get_article_versions(space_id, article_id, user_id)
+        versions = await article_service.get_article_versions(space_id, article_id, user_id, user_perm)
         return [ArticleVersionResponse(**v) for v in versions]
     except ValueError:
         raise AppError(status.HTTP_404_NOT_FOUND, ErrorCode.NOT_FOUND) from None
@@ -422,10 +523,11 @@ async def get_article_version(
 
     session_data = await session_service.get_session(session_token, trace_id)
     user_id = session_data.user.id
+    user_perm = session_data.user.permission
 
     try:
         version = await article_service.get_article_version_by_number(
-            space_id, article_id, version_number, user_id,
+            space_id, article_id, version_number, user_id, user_perm,
         )
         return ArticleVersionResponse(**version)
     except ValueError:
