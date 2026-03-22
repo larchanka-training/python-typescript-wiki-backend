@@ -122,6 +122,7 @@ class Article(Base):
         DateTime(timezone=True),
         server_default=text("now()"),
     )
+    is_locked: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

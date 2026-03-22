@@ -39,6 +39,14 @@ class ArticleSaveRequest(BaseModel):
     )
 
 
+class ArticlePermissions(BaseModel):
+    """Permissions for performing actions on an article."""
+
+    can_edit: bool = Field(..., description="Whether the user can edit this article")
+    can_delete: bool = Field(..., description="Whether the user can delete this article")
+    can_lock: bool = Field(..., description="Whether the user can lock/unlock this article")
+
+
 class ArticleVersionResponse(BaseModel):
     """Schema for returning article version information."""
 
@@ -54,6 +62,8 @@ class ArticleVersionResponse(BaseModel):
     content_format: str = Field("markdown", description="Content format")
     change_summary: str | None = Field(None, description="Short description of changes")
     created_at: datetime = Field(..., description="Timestamp when the version was created")
+    is_locked: bool = Field(False, description="Whether the article is locked")
+    permissions: ArticlePermissions = Field(..., description="Action permissions for the article")
 
     model_config = {
         "json_schema_extra": {
@@ -70,6 +80,12 @@ class ArticleVersionResponse(BaseModel):
                 "content_format": "markdown",
                 "change_summary": None,
                 "created_at": "2026-01-01T12:00:00Z",
+                "is_locked": False,
+                "permissions": {
+                    "can_edit": True,
+                    "can_delete": False,
+                    "can_lock": False,
+                },
             }
         }
     }
@@ -88,6 +104,8 @@ class ArticleListItem(BaseModel):
     position: int = Field(0, description="Sort position within siblings")
     created_at: datetime = Field(..., description="Timestamp when the article was created")
     updated_at: datetime = Field(..., description="Timestamp of the last update")
+    is_locked: bool = Field(False, description="Whether the article is locked")
+    permissions: ArticlePermissions | None = Field(None, description="Action permissions for the article")
 
 
 class ArticleListResponse(BaseModel):
